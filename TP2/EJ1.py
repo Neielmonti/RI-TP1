@@ -6,98 +6,104 @@ import subprocess
 from zipfile import ZipFile
 
 with ZipFile("collection_test.zip", 'r') as zObject:
-
-    # Extracting all the members of the zip
-    # into a specific location.
-    zObject.extractall(
-        path="collection_test")
-
-with ZipFile("collection_test/collection_test/TestCollection.zip", 'r') as zObject:
-
-    # Extracting all the members of the zip
-    # into a specific location.
-    zObject.extractall(
-        path="collection_test/collection_test/TestCollection")
+    zObject.extractall(path="collection_test")
     
+with ZipFile("collection_test/collection_test/TestCollection.zip", 'r') as zObject:
+    zObject.extractall(path="collection_test/collection_test/TestCollection")
+    
+token_count = 0
+doc_count = 0
 
+def readlinePlus(file) -> str:
+    global token_count
+    
+    aux = re.sub("\n", "", file.readline())
+    if aux != "":
+        token_count += 1
 
+    return aux
 
 def openFilesFromFolder(folder: str):
-  limit = 1
-  for root, dirs, files in os.walk(folder):
-      for file in files:
-          filename, extension = os.path.splitext(file)
-          if extension == '.txt':
+    json_data = load_json(json_file)
 
-            sort_words_unix(folder + '/' + file , "ordenado.txt")
-            f = open("ordenado.txt" ,"r")
-            docID = re.findall(r'\d+', file)[0]
-            seguir = True
+    if "data" not in json_data:
+        json_data["data"] = {}
+    if "statistics" not in json_data:
+        json_data["statistics"] = {}
 
-            word1 = f.readline()
-
-            while seguir:
-              word2 = f.readline()
-              contador = 1
-
-              while word1 == word2 and word1 != "":
-                contador += 1
-                word2 = f.readline()
-                if word2 == "":
-                  seguir = False
-                  actualizar_json(json_file, word1, docID, contador)
-
-              if word1 != '':
-                actualizar_json(json_file, word1, docID, contador)
+    global doc_count
+    
+    files = sorted(f for f in os.listdir(folder) if f.endswith('.txt')) 
+    
+    for file in files:
+        doc_count += 1
+        print("Procesando archivo: " + file)
+        
+        match = re.search(r'\d+', file)
+        if not match:
+            continue
+        docID = match.group()
+        
+        sort_words_unix(os.path.join(folder, file), sorting_file)
+        
+        with open(sorting_file, "r", encoding="utf-8") as f:
+            word1 = readlinePlus(f)
+            
+            while word1:
+                contador = 1
+                word2 = readlinePlus(f)
+                
+                while word1 == word2 and word1:
+                    contador += 1
+                    word2 = readlinePlus(f)
+                updateJsonInMemory(json_data["data"], word1, docID, contador)
                 word1 = word2
-              else:
-                seguir = False
-
+    
+    save_json(json_file, json_data)
 
 def sort_words_unix(filename, output_file):
     command = f"cat {filename} | tr '[:upper:]' '[:lower:]' | tr -s '[:space:]' '\\n' | sed 's/[^a-z]/ /g' | tr -s ' ' '\\n' | sed '/^$/d' | sort > {output_file}"
     subprocess.run(command, shell=True, check=True)
 
-
-def actualizar_json(json_file, palabra, docID, freq):
-    try:
-        with open(json_file, "r", encoding="iso-8859-1") as f:
-            data = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        data = {}
-        with open(json_file, 'w', encoding="utf-8") as f:
-            json.dump(data, f, indent=4, ensure_ascii=False)
-
-    # Si la palabra no existe, crearla
+def updateJsonInMemory(data, palabra, docID, freq):
     if palabra not in data:
-        data[palabra] = {
-            "palabra": palabra,
-            "df": 0,
-            "apariciones": {}
-        }
-
-    # Si el docID no existe para la palabra, iniciarlo y actualizar DF
+        data[palabra] = {"palabra": palabra, "df": 0, "apariciones": {}}
+    
     if docID not in data[palabra]["apariciones"]:
         data[palabra]["df"] += 1  
 
-    # Asignar la frecuencia proporcionada
     data[palabra]["apariciones"][docID] = freq
 
-    # Guardar cambios en el JSON
-    with open(json_file, "w", encoding="utf-8") as f:
+def load_json(json_file):
+    try:
+        with open(json_file, "r", encoding="iso-8859-1") as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+def save_json(json_file, data):
+    with open(json_file, "w", encoding="iso-8859-1") as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
 
-
-def obtener_valores(json_file, palabra):
+def get_json_values(json_file, palabra):
     try:
-        with open(json_file, "r", encoding="utf-8") as f:
+        with open(json_file, "r", encoding="iso-8859-1") as f:
             data = json.load(f)
-        return data.get(palabra, None)
+        return data.get("data", {}).get(palabra, None)
     except (FileNotFoundError, json.JSONDecodeError):
         return None
 
+def save_json_statistics(json_file):
+    json_data = load_json(json_file)
+
+    term_count = len(json_data["data"])
+    json_data["statistics"] = {"N": doc_count, "num_terms": term_count , "num_tokens": token_count}
+
+    save_json(json_file, json_data)
 
 json_file = "palabras.json"
-
-
+sorting_file = "ordenado.txt"
 openFilesFromFolder('collection_test/collection_test/TestCollection/TestCollection')
+save_json_statistics(json_file)
+
+os.remove(sorting_file)
