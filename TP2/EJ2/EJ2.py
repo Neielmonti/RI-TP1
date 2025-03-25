@@ -7,7 +7,21 @@ import argparse
     
 token_count = 0
 doc_count = 0
+min_len = 5
+max_len = 10
+json_file = "palabras.json"
+sorting_file = "ordenado.txt"
+terms_file = "terminos.txt"
+stop_words_file = ""
+check_for_stop_words = False
+stopWords = []
 
+def loadStopWords():
+    global stop_words_file
+    global stopWords
+    with open(stop_words_file, "r", encoding="iso-8859-1") as file:
+        for line in file:
+            stopWords.extend(line.strip().lower().split())
 
 def readlinePlus(file) -> str:
     global token_count
@@ -18,6 +32,18 @@ def readlinePlus(file) -> str:
 
     return aux
 
+def isAValidToken(token: str) -> bool:
+    global min_len
+    global max_len
+    global check_for_stop_words
+    global stopWords
+    if len(token) < min_len or len(token) > max_len:
+        return False
+    if check_for_stop_words:
+        if token in stopWords:
+            return False
+    return True
+
 def openFilesFromFolder(folder: str):
     json_data = load_json(json_file)
 
@@ -27,7 +53,7 @@ def openFilesFromFolder(folder: str):
         json_data["statistics"] = {}
 
     global doc_count
-    
+
     files = sorted(f for f in os.listdir(folder) if f.endswith('.txt')) 
     
     for file in files:
@@ -51,10 +77,12 @@ def openFilesFromFolder(folder: str):
                 while word1 == word2 and word1:
                     contador += 1
                     word2 = readlinePlus(f)
-                updateJsonInMemory(json_data["data"], word1, docID, contador)
+                if isAValidToken(word1):
+                    updateJsonInMemory(json_data["data"], word1, docID, contador)
                 word1 = word2
     
     save_json(json_file, json_data)
+    save_terms_file(json_data)
 
 def sort_words_unix(filename, output_file):
     command = f"cat {filename} | tr '[:upper:]' '[:lower:]' | tr -s '[:space:]' '\\n' | sed 's/[^a-z]/ /g' | tr -s ' ' '\\n' | sed '/^$/d' | sort > {output_file}"
@@ -97,12 +125,27 @@ def save_json_statistics(json_file):
     save_json(json_file, json_data)
 
 
+def save_terms_file(json_data):
+    global terms_file
+    with open(terms_file, "w", encoding="iso-8859-1") as f:
+        for term, data in json_data.get("data", {}).items():
+            cf = sum(data["apariciones"].values())  # Total de la frecuencia en la colección
+            df = data["df"]  # Document Frequency
+            # Escribir el término, CF y DF en el archivo de texto
+            f.write(f"{term} {cf} {df}\n")
+
 def main(corpus_folder, stop_words_folder):
+    global stop_words_file
+    global check_for_stop_words
 
     print(f"corpus_folder: {corpus_folder}")
 
     if stop_words_folder:
         print(f"stop_words_folder: {stop_words_folder}")
+        stop_words_file = stop_words_folder
+        check_for_stop_words = True
+        loadStopWords()
+
     else:
         print("No se proporcionó stop_words_folder.")
 
@@ -117,7 +160,3 @@ if __name__ == "__main__":
     args = parser.parse_args()
     main(args.corpus_folder, args.stop_words_folder)
 
-
-
-json_file = "palabras.json"
-sorting_file = "ordenado.txt"

@@ -1,0 +1,11 @@
+$alfombra 365944 10000$
+$botella 24185 2000$
+$telescopio 34775 1500$
+$lluvia 74840 3200$
+$ventanal 19818 1100$
+$reloj 9878 700$
+$llave 16155 800$
+$pelotas 25461 1400$
+$puerta 11191 900$
+$tenis 25382 1300$
+$sillon 15767 1000$
