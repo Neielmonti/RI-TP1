@@ -9,12 +9,24 @@ token_count = 0
 doc_count = 0
 min_len = 5
 max_len = 10
+
+sum_terms_per_doc = 0
+
 json_file = "palabras.json"
 sorting_file = "ordenado.txt"
 terms_file = "terminos.txt"
+statistics_file = "estadisticas.txt"
+frequency_file = "frecuencias.txt"
+
 stop_words_file = ""
 check_for_stop_words = False
 stopWords = []
+
+shortest_doc = ""
+shortest_doc_size = 99999999999999
+
+largest_doc = ""
+largest_doc_size = 0
 
 def loadStopWords():
     global stop_words_file
@@ -44,6 +56,22 @@ def isAValidToken(token: str) -> bool:
             return False
     return True
 
+def checkSizeDoc(docID: int, size: int):
+    global shortest_doc
+    global shortest_doc_size
+    global largest_doc
+    global largest_doc_size
+
+    if size < shortest_doc_size:
+        shortest_doc = docID
+        shortest_doc_size = size
+    elif size > largest_doc_size:
+        largest_doc = docID
+        largest_doc_size = size
+
+largest_doc = ""
+largest_doc_size = 0
+
 def openFilesFromFolder(folder: str):
     json_data = load_json(json_file)
 
@@ -53,6 +81,7 @@ def openFilesFromFolder(folder: str):
         json_data["statistics"] = {}
 
     global doc_count
+    global sum_terms_per_doc
 
     files = sorted(f for f in os.listdir(folder) if f.endswith('.txt')) 
     
@@ -64,10 +93,12 @@ def openFilesFromFolder(folder: str):
         if not match:
             continue
         docID = match.group()
+
+        doc_token_count = 0
         
         sort_words_unix(os.path.join(folder, file), sorting_file)
         
-        with open(sorting_file, "r", encoding="utf-8") as f:
+        with open(sorting_file, "r", encoding="iso-8859-1") as f:
             word1 = readlinePlus(f)
             
             while word1:
@@ -79,10 +110,16 @@ def openFilesFromFolder(folder: str):
                     word2 = readlinePlus(f)
                 if isAValidToken(word1):
                     updateJsonInMemory(json_data["data"], word1, docID, contador)
+                    sum_terms_per_doc += 1
+                doc_token_count += contador
                 word1 = word2
+
+        checkSizeDoc(docID, doc_token_count)
+        print("Tamaño del archivo " + docID + ": " + file)
     
     save_json(json_file, json_data)
     save_terms_file(json_data)
+    save_statistics_file(json_data)
 
 def sort_words_unix(filename, output_file):
     command = f"cat {filename} | tr '[:upper:]' '[:lower:]' | tr -s '[:space:]' '\\n' | sed 's/[^a-z]/ /g' | tr -s ' ' '\\n' | sed '/^$/d' | sort > {output_file}"
@@ -123,6 +160,36 @@ def save_json_statistics(json_file):
     json_data["statistics"] = {"N": doc_count, "num_terms": term_count , "num_tokens": token_count}
 
     save_json(json_file, json_data)
+
+def get_terms_average_len(json_data) -> int:
+    terms = json_data["data"]
+    term_count = len(terms)
+    total_length = sum(len(term) for term in terms)
+    return (total_length//term_count)
+
+def save_statistics_file(json_data):
+    global doc_count
+    global statistics_file
+    global sum_terms_per_doc
+    global token_count
+
+    with open(statistics_file, "w", encoding="iso-8859-1") as f:
+        """
+        Cantidad de documentos procesados.
+Cantidad de tokens y términos extraídos.
+Promedio de tokens y términos de los documentos.
+Largo promedio de un término.
+Cantidad de tokens y términos del documento más corto y del más largo.
+Cantidad de términos que aparecen sólo 1 vez en la colección.
+        """
+
+        term_count = len(json_data["data"])
+        term_average_len = get_terms_average_len(json_data)
+
+        f.write(f"{doc_count}\n")
+        f.write(f"{token_count} {term_count}\n")
+        f.write(f"{token_count//doc_count} {sum_terms_per_doc//doc_count}\n")
+        f.write(f"{term_average_len}\n")
 
 
 def save_terms_file(json_data):
