@@ -115,11 +115,13 @@ def openFilesFromFolder(folder: str):
                 word1 = word2
 
         checkSizeDoc(docID, doc_token_count)
-        print("Tamaño del archivo " + docID + ": " + file)
+        print("Tamaño del archivo " + docID + ": " , doc_token_count)
     
     save_json(json_file, json_data)
     save_terms_file(json_data)
     save_statistics_file(json_data)
+    save_top_terms(json_file, top="max")
+    save_top_terms(json_file, top="min")
 
 def sort_words_unix(filename, output_file):
     command = f"cat {filename} | tr '[:upper:]' '[:lower:]' | tr -s '[:space:]' '\\n' | sed 's/[^a-z]/ /g' | tr -s ' ' '\\n' | sed '/^$/d' | sort > {output_file}"
@@ -129,6 +131,11 @@ def updateJsonInMemory(data, palabra, docID, freq):
     if palabra not in data:
         data[palabra] = {"palabra": palabra, "df": 0, "apariciones": {}}
     
+    if "cf" not in data[palabra]:
+        data[palabra]["cf"] = 0
+
+    data[palabra]["cf"] += freq
+
     if docID not in data[palabra]["apariciones"]:
         data[palabra]["df"] += 1  
 
@@ -200,6 +207,29 @@ def save_terms_file(json_data):
             df = data["df"]  # Document Frequency
             # Escribir el término, CF y DF en el archivo de texto
             f.write(f"{term} {cf} {df}\n")
+
+def save_top_terms(json_file, top="max"):
+    global frequency_file
+
+    # Cargar el JSON
+    with open(json_file, "r", encoding="iso-8859-1") as file:
+        json_data = json.load(file)
+
+    terms = json_data.get("data", {})  # Extraer la sección de términos
+    
+    # Convertir a lista de tuplas (termino, cf)
+    term_list = [(term, info["cf"]) for term, info in terms.items()]
+    
+    # Ordenar por CF de menor a mayor
+    term_list.sort(key=lambda x: x[1], reverse=(top == "max"))
+
+    # Seleccionar el top 10
+    top_terms = term_list[:10]
+
+    # Escribir en el archivo de salida
+    with open(frequency_file, "a", encoding="iso-8859-1") as file:
+        for term, cf in top_terms:
+            file.write(f"{term} {cf}\n")
 
 def main(corpus_folder, stop_words_folder):
     global stop_words_file
