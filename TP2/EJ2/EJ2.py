@@ -69,9 +69,6 @@ def checkSizeDoc(docID: int, size: int):
         largest_doc = docID
         largest_doc_size = size
 
-largest_doc = ""
-largest_doc_size = 0
-
 def openFilesFromFolder(folder: str):
     json_data = load_json(json_file)
 
@@ -95,7 +92,7 @@ def openFilesFromFolder(folder: str):
         docID = match.group()
 
         doc_token_count = 0
-        
+
         sort_words_unix(os.path.join(folder, file), sorting_file)
         
         with open(sorting_file, "r", encoding="iso-8859-1") as f:
@@ -115,7 +112,6 @@ def openFilesFromFolder(folder: str):
                 word1 = word2
 
         checkSizeDoc(docID, doc_token_count)
-        print("Tamaño del archivo " + docID + ": " , doc_token_count)
     
     save_json(json_file, json_data)
     save_terms_file(json_data)
@@ -181,22 +177,15 @@ def save_statistics_file(json_data):
     global token_count
 
     with open(statistics_file, "w", encoding="iso-8859-1") as f:
-        """
-        Cantidad de documentos procesados.
-Cantidad de tokens y términos extraídos.
-Promedio de tokens y términos de los documentos.
-Largo promedio de un término.
-Cantidad de tokens y términos del documento más corto y del más largo.
-Cantidad de términos que aparecen sólo 1 vez en la colección.
-        """
-
         term_count = len(json_data["data"])
         term_average_len = get_terms_average_len(json_data)
+        terms_with_freq1 = countTermsWithFreq1(json_data)
 
         f.write(f"{doc_count}\n")
         f.write(f"{token_count} {term_count}\n")
-        f.write(f"{token_count//doc_count} {sum_terms_per_doc//doc_count}\n")
+        f.write(f"{token_count/doc_count} {sum_terms_per_doc/doc_count}\n")
         f.write(f"{term_average_len}\n")
+        f.write(f"{terms_with_freq1}\n")
 
 
 def save_terms_file(json_data):
@@ -230,6 +219,12 @@ def save_top_terms(json_file, top="max"):
     with open(frequency_file, "a", encoding="iso-8859-1") as file:
         for term, cf in top_terms:
             file.write(f"{term} {cf}\n")
+
+def countTermsWithFreq1(json_data):
+    terms = json_data.get("data", {})
+    term_list = [(term, info["cf"]) for term, info in terms.items()]
+    terms_with_freq1 = [term for term, cf in term_list if cf == 1]
+    return len(terms_with_freq1)
 
 def main(corpus_folder, stop_words_folder):
     global stop_words_file

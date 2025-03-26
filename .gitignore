@@ -1,5 +1,19 @@
+# Para linux
+
 TP2/EJ1/collection_test
 TP2/EJ1/palabras.json
 
+TP2/EJ2/estadisticas.txt
+TP2/EJ2/frecuencias.txt
+TP2/EJ2/terminos.txt
+TP2/EJ2/palabras.json
+
+# Para windows
+
 TP2\EJ1\collection_test
 TP2\EJ1\palabras.json
+
+TP2\EJ2\estadisticas.txt
+TP2\EJ2\frecuencias.txt
+TP2\EJ2\terminos.txt
+TP2\EJ2\palabras.json
