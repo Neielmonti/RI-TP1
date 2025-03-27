@@ -4,251 +4,202 @@ from os import path
 import re
 import subprocess
 import argparse
-    
-token_count = 0
-doc_count = 0
-min_len = 5
-max_len = 10
 
-sum_terms_per_doc = 0
+class DocumentProcessor:
+    def __init__(self, corpus_folder, stop_words_folder=None):
+        self.token_count = 0
+        self.doc_count = 0
+        self.min_len = 5
+        self.max_len = 10
+        self.sum_terms_per_doc = 0
 
-json_file = "palabras.json"
-sorting_file = "ordenado.txt"
-terms_file = "terminos.txt"
-statistics_file = "estadisticas.txt"
-frequency_file = "frecuencias.txt"
+        self.json_file = "palabras.json"
+        self.sorting_file = "ordenado.txt"
+        self.terms_file = "terminos.txt"
+        self.statistics_file = "estadisticas.txt"
+        self.frequency_file = "frecuencias.txt"
 
-stop_words_file = ""
-check_for_stop_words = False
-stopWords = []
+        self.stop_words_file = stop_words_folder
+        self.check_for_stop_words = False
+        self.stopWords = []
 
-shortest_doc = ""
-shortest_doc_size = 99999999999999
+        self.shortest_doc = ""
+        self.shortest_doc_size = 99999999999999
+        self.largest_doc = ""
+        self.largest_doc_size = 0
 
-largest_doc = ""
-largest_doc_size = 0
+        if stop_words_folder:
+            self.check_for_stop_words = True
+            self.loadStopWords()
 
-def loadStopWords():
-    global stop_words_file
-    global stopWords
-    with open(stop_words_file, "r", encoding="iso-8859-1") as file:
-        for line in file:
-            stopWords.extend(line.strip().lower().split())
+        self.corpus_folder = corpus_folder
 
-def readlinePlus(file) -> str:
-    global token_count
-    
-    aux = re.sub("\n", "", file.readline())
-    if aux != "":
-        token_count += 1
+    def loadStopWords(self):
+        with open(self.stop_words_file, "r", encoding="iso-8859-1") as file:
+            for line in file:
+                self.stopWords.extend(line.strip().lower().split())
 
-    return aux
+    def readlinePlus(self, file) -> str:
+        aux = re.sub("\n", "", file.readline())
+        if aux != "":
+            self.token_count += 1
+        return aux
 
-def isAValidToken(token: str) -> bool:
-    global min_len
-    global max_len
-    global check_for_stop_words
-    global stopWords
-    if len(token) < min_len or len(token) > max_len:
-        return False
-    if check_for_stop_words:
-        if token in stopWords:
+    def isAValidToken(self, token: str) -> bool:
+        if len(token) < self.min_len or len(token) > self.max_len:
             return False
-    return True
+        if self.check_for_stop_words:
+            if token in self.stopWords:
+                return False
+        return True
 
-def checkSizeDoc(docID: int, size: int):
-    global shortest_doc
-    global shortest_doc_size
-    global largest_doc
-    global largest_doc_size
+    def checkSizeDoc(self, docID: int, size: int):
+        if size < self.shortest_doc_size:
+            self.shortest_doc = docID
+            self.shortest_doc_size = size
+        elif size > self.largest_doc_size:
+            self.largest_doc = docID
+            self.largest_doc_size = size
 
-    if size < shortest_doc_size:
-        shortest_doc = docID
-        shortest_doc_size = size
-    elif size > largest_doc_size:
-        largest_doc = docID
-        largest_doc_size = size
+    def openFilesFromFolder(self):
+        json_data = self.load_json(self.json_file)
 
-def openFilesFromFolder(folder: str):
-    json_data = load_json(json_file)
+        if "data" not in json_data:
+            json_data["data"] = {}
+        if "statistics" not in json_data:
+            json_data["statistics"] = {}
 
-    if "data" not in json_data:
-        json_data["data"] = {}
-    if "statistics" not in json_data:
-        json_data["statistics"] = {}
+        files = sorted(f for f in os.listdir(self.corpus_folder) if f.endswith('.txt')) 
 
-    global doc_count
-    global sum_terms_per_doc
+        for file in files:
+            self.doc_count += 1
+            print("Procesando archivo: " + file)
 
-    files = sorted(f for f in os.listdir(folder) if f.endswith('.txt')) 
-    
-    for file in files:
-        doc_count += 1
-        print("Procesando archivo: " + file)
-        
-        match = re.search(r'\d+', file)
-        if not match:
-            continue
-        docID = match.group()
+            match = re.search(r'\d+', file)
+            if not match:
+                continue
+            docID = match.group()
 
-        doc_token_count = 0
+            doc_token_count = 0
 
-        sort_words_unix(os.path.join(folder, file), sorting_file)
-        
-        with open(sorting_file, "r", encoding="iso-8859-1") as f:
-            word1 = readlinePlus(f)
+            self.sort_words_unix(os.path.join(self.corpus_folder, file), self.sorting_file)
             
-            while word1:
-                contador = 1
-                word2 = readlinePlus(f)
+            with open(self.sorting_file, "r", encoding="iso-8859-1") as f:
+                word1 = self.readlinePlus(f)
                 
-                while word1 == word2 and word1:
-                    contador += 1
-                    word2 = readlinePlus(f)
-                if isAValidToken(word1):
-                    updateJsonInMemory(json_data["data"], word1, docID, contador)
-                    sum_terms_per_doc += 1
-                doc_token_count += contador
-                word1 = word2
+                while word1:
+                    contador = 1
+                    word2 = self.readlinePlus(f)
+                    
+                    while word1 == word2 and word1:
+                        contador += 1
+                        word2 = self.readlinePlus(f)
+                    if self.isAValidToken(word1):
+                        self.updateJsonInMemory(json_data["data"], word1, docID, contador)
+                        self.sum_terms_per_doc += 1
+                    doc_token_count += contador
+                    word1 = word2
 
-        checkSizeDoc(docID, doc_token_count)
-    
-    save_json(json_file, json_data)
-    save_terms_file(json_data)
-    save_statistics_file(json_data)
-    save_top_terms(json_file, top="max")
-    save_top_terms(json_file, top="min")
+            self.checkSizeDoc(docID, doc_token_count)
 
-def sort_words_unix(filename, output_file):
-    command = f"cat {filename} | tr '[:upper:]' '[:lower:]' | tr -s '[:space:]' '\\n' | sed 's/[^a-z]/ /g' | tr -s ' ' '\\n' | sed '/^$/d' | sort > {output_file}"
-    subprocess.run(command, shell=True, check=True)
+        self.save_json(self.json_file, json_data)
+        self.save_terms_file(json_data)
+        self.save_statistics_file(json_data)
+        self.save_top_terms(self.json_file, top="max")
+        self.save_top_terms(self.json_file, top="min")
 
-def updateJsonInMemory(data, palabra, docID, freq):
-    if palabra not in data:
-        data[palabra] = {"palabra": palabra, "df": 0, "apariciones": {}}
-    
-    if "cf" not in data[palabra]:
-        data[palabra]["cf"] = 0
+    def sort_words_unix(self, filename, output_file):
+        command = f"cat {filename} | tr '[:upper:]' '[:lower:]' | tr -s '[:space:]' '\\n' | sed 's/[^a-z]/ /g' | tr -s ' ' '\\n' | sed '/^$/d' | sort > {output_file}"
+        subprocess.run(command, shell=True, check=True)
 
-    data[palabra]["cf"] += freq
+    def updateJsonInMemory(self, data, palabra, docID, freq):
+        if palabra not in data:
+            data[palabra] = {"palabra": palabra, "df": 0, "apariciones": {}}
+        
+        if "cf" not in data[palabra]:
+            data[palabra]["cf"] = 0
 
-    if docID not in data[palabra]["apariciones"]:
-        data[palabra]["df"] += 1  
+        data[palabra]["cf"] += freq
 
-    data[palabra]["apariciones"][docID] = freq
+        if docID not in data[palabra]["apariciones"]:
+            data[palabra]["df"] += 1  
 
-def load_json(json_file):
-    try:
-        with open(json_file, "r", encoding="iso-8859-1") as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return {}
+        data[palabra]["apariciones"][docID] = freq
 
-def save_json(json_file, data):
-    with open(json_file, "w", encoding="iso-8859-1") as f:
-        json.dump(data, f, ensure_ascii=False, indent=4)
+    def load_json(self, json_file):
+        try:
+            with open(json_file, "r", encoding="iso-8859-1") as f:
+                return json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            return {}
 
-def get_json_values(json_file, palabra):
-    try:
-        with open(json_file, "r", encoding="iso-8859-1") as f:
-            data = json.load(f)
-        return data.get("data", {}).get(palabra, None)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return None
+    def save_json(self, json_file, data):
+        with open(json_file, "w", encoding="iso-8859-1") as f:
+            json.dump(data, f, ensure_ascii=False, indent=4)
 
-def save_json_statistics(json_file):
-    json_data = load_json(json_file)
+    def save_json_statistics(self, json_file):
+        json_data = self.load_json(json_file)
 
-    term_count = len(json_data["data"])
-    json_data["statistics"] = {"N": doc_count, "num_terms": term_count , "num_tokens": token_count}
-
-    save_json(json_file, json_data)
-
-def get_terms_average_len(json_data) -> int:
-    terms = json_data["data"]
-    term_count = len(terms)
-    total_length = sum(len(term) for term in terms)
-    return (total_length//term_count)
-
-def save_statistics_file(json_data):
-    global doc_count
-    global statistics_file
-    global sum_terms_per_doc
-    global token_count
-
-    with open(statistics_file, "w", encoding="iso-8859-1") as f:
         term_count = len(json_data["data"])
-        term_average_len = get_terms_average_len(json_data)
-        terms_with_freq1 = countTermsWithFreq1(json_data)
+        json_data["statistics"] = {"N": self.doc_count, "num_terms": term_count , "num_tokens": self.token_count}
 
-        f.write(f"{doc_count}\n")
-        f.write(f"{token_count} {term_count}\n")
-        f.write(f"{token_count/doc_count} {sum_terms_per_doc/doc_count}\n")
-        f.write(f"{term_average_len}\n")
-        f.write(f"{terms_with_freq1}\n")
+        self.save_json(json_file, json_data)
 
+    def get_terms_average_len(self, json_data) -> int:
+        terms = json_data["data"]
+        term_count = len(terms)
+        total_length = sum(len(term) for term in terms)
+        return (total_length // term_count)
 
-def save_terms_file(json_data):
-    global terms_file
-    with open(terms_file, "w", encoding="iso-8859-1") as f:
-        for term, data in json_data.get("data", {}).items():
-            cf = sum(data["apariciones"].values())  # Total de la frecuencia en la colección
-            df = data["df"]  # Document Frequency
-            # Escribir el término, CF y DF en el archivo de texto
-            f.write(f"{term} {cf} {df}\n")
+    def save_statistics_file(self, json_data):
+        with open(self.statistics_file, "w", encoding="iso-8859-1") as f:
+            term_count = len(json_data["data"])
+            term_average_len = self.get_terms_average_len(json_data)
+            terms_with_freq1 = self.countTermsWithFreq1(json_data)
 
-def save_top_terms(json_file, top="max"):
-    global frequency_file
+            f.write(f"{self.doc_count}\n")
+            f.write(f"{self.token_count} {term_count}\n")
+            f.write(f"{self.token_count/self.doc_count} {self.sum_terms_per_doc/self.doc_count}\n")
+            f.write(f"{term_average_len}\n")
+            f.write(f"{terms_with_freq1}\n")
 
-    # Cargar el JSON
-    with open(json_file, "r", encoding="iso-8859-1") as file:
-        json_data = json.load(file)
+    def save_terms_file(self, json_data):
+        with open(self.terms_file, "w", encoding="iso-8859-1") as f:
+            for term, data in json_data.get("data", {}).items():
+                cf = sum(data["apariciones"].values()) 
+                df = data["df"]
+                f.write(f"{term} {cf} {df}\n")
 
-    terms = json_data.get("data", {})  # Extraer la sección de términos
-    
-    # Convertir a lista de tuplas (termino, cf)
-    term_list = [(term, info["cf"]) for term, info in terms.items()]
-    
-    # Ordenar por CF de menor a mayor
-    term_list.sort(key=lambda x: x[1], reverse=(top == "max"))
+    def save_top_terms(self, json_file, top="max"):
+        with open(json_file, "r", encoding="iso-8859-1") as file:
+            json_data = json.load(file)
 
-    # Seleccionar el top 10
-    top_terms = term_list[:10]
+        terms = json_data.get("data", {}) 
+        term_list = [(term, info["cf"]) for term, info in terms.items()]
+        term_list.sort(key=lambda x: x[1], reverse=(top == "max"))
+        top_terms = term_list[:10]
 
-    # Escribir en el archivo de salida
-    with open(frequency_file, "a", encoding="iso-8859-1") as file:
-        for term, cf in top_terms:
-            file.write(f"{term} {cf}\n")
+        with open(self.frequency_file, "a", encoding="iso-8859-1") as file:
+            for term, cf in top_terms:
+                file.write(f"{term} {cf}\n")
 
-def countTermsWithFreq1(json_data):
-    terms = json_data.get("data", {})
-    term_list = [(term, info["cf"]) for term, info in terms.items()]
-    terms_with_freq1 = [term for term, cf in term_list if cf == 1]
-    return len(terms_with_freq1)
+    def countTermsWithFreq1(self, json_data):
+        terms = json_data.get("data", {})
+        term_list = [(term, info["cf"]) for term, info in terms.items()]
+        terms_with_freq1 = [term for term, cf in term_list if cf == 1]
+        return len(terms_with_freq1)
 
-def main(corpus_folder, stop_words_folder):
-    global stop_words_file
-    global check_for_stop_words
-
-    print(f"corpus_folder: {corpus_folder}")
-
-    if stop_words_folder:
-        print(f"stop_words_folder: {stop_words_folder}")
-        stop_words_file = stop_words_folder
-        check_for_stop_words = True
-        loadStopWords()
-
-    else:
-        print("No se proporcionó stop_words_folder.")
-
-    openFilesFromFolder(corpus_folder)
-    save_json_statistics(json_file)
-    os.remove(sorting_file)
+    def run(self):
+        self.openFilesFromFolder()
+        self.save_json_statistics(self.json_file)
+        os.remove(self.sorting_file)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Parámetros del programa")
     parser.add_argument("corpus_folder", help="Ruta al directorio que contiene los documentos")
     parser.add_argument("stop_words_folder", nargs="?", default=None, help="Ruta al archivo que contiene las palabras vacías (opcional)")
     args = parser.parse_args()
-    main(args.corpus_folder, args.stop_words_folder)
+
+    processor = DocumentProcessor(args.corpus_folder, args.stop_words_folder)
+    processor.run()
 
