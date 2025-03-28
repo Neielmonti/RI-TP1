@@ -4,6 +4,7 @@ from os import path
 import re
 import subprocess
 import argparse
+from collections import Counter
 
 class DocumentProcessor:
     def __init__(self, corpus_folder, stop_words_folder=None):
@@ -35,11 +36,11 @@ class DocumentProcessor:
         self.corpus_folder = corpus_folder
 
         #self.pattern_number = "([0-9]+[,])*[0-9]([.][0-9]+)?"
-        self.pattern_url = r"https?:\/\/(?:www\.)?[\w.-]+(?:\.[a-zA-Z]{2,6})+(?:\/[\w\/._-]*)*"
-        self.pattern_email = "[a-zA-Z0-9_]+([.][a-zA-Z0-9_]+)*@[a-zA-Z0-9_]+([.][a-zA-Z0-9_]+)*[.][a-zA-Z]{2,5}"
-        self.pattern_number = "[0-9]+"
-        self.pattern_abbr = r"(?:[A-Z]\.)+"
-        self.pattern_name = "[A-Z]([a-z])+( [A-Z]([a-z])+)*"
+        self.pattern_url = r"(?:https?|ftp):\/\/(?:www\.)?[\w.-]+(?:\.[a-zA-Z]{2,6})+(?:\/[\w\/._-]*)*(?:\?[\w\&=\-;%\.\d]*)?(?:#[\w-]*)?"
+        self.pattern_email = "[a-zA-Z0-9_]+(?:[.][a-zA-Z0-9_]+)*@[a-zA-Z0-9_]+(?:[.][a-zA-Z0-9_]+)*[.][a-zA-Z]{2,5}"
+        self.pattern_number = "[0-9]+(?:-[0-9]+)*"
+        self.pattern_abbr = r"(?:[A-Z][A-Z]?[a-z]*\.)+[A-Z]?"
+        self.pattern_name = "[A-Z][a-z]+(?: [A-Z][a-z]+)*"
 
         self.patterns = [value for key, value in vars(self).items() if key.startswith("pattern_")]
 
@@ -82,48 +83,70 @@ class DocumentProcessor:
             json_data["data"] = {}
         if "statistics" not in json_data:
             json_data["statistics"] = {}
-            
+
         files = sorted(f for f in os.listdir(self.corpus_folder) if f.endswith('.txt')) 
 
         for file in files:
             self.doc_count += 1
-            print("Procesando archivo: " + file)
+            print("Procesando archivo:", file)
 
             match = re.search(r'\d+', file)
             if not match:
                 continue
             docID = match.group()
 
-            doc_token_count = 0
-            
-            with open((self.corpus_folder + "/" + file), "r", encoding="iso-8859-1") as f:
+            with open(os.path.join(self.corpus_folder, file), "r", encoding="iso-8859-1") as f:
                 extracted_terms = []
-                
                 word1 = self.readlinePlus(f)
+
+                cleaned_text = word1
+
+                # Iterar sobre los patrones para extraer y eliminar los términos coincidentes uno por uno
                 for pattern in self.patterns:
-                    matches = re.findall(pattern, word1)
+                    matches = re.findall(pattern, cleaned_text)
                     if matches:
-                        # re.findall devuelve tuplas si hay grupos en la regex, tomamos solo el match completo
+                        # Solo agregar términos únicos a la lista de términos extraídos
                         extracted_terms.extend([m[0] if isinstance(m, tuple) else m for m in matches])
-                        # Remover los términos extraídos del texto
-                        cleaned_text = word1
-                        for term in extracted_terms:
-                            cleaned_text = cleaned_text.replace(term, '')
-                print(extracted_terms)
-                #print(extracted_terms)
-                """
-                self.findRegex(word1)
-                if self.isAValidToken(word1):
-                self.updateJsonInMemory(json_data["data"], word1, docID, contador)
-                """
 
-            self.checkSizeDoc(docID, doc_token_count)
+                        # Eliminar los términos coincidentes del texto solo una vez
+                        for term in matches:
+                            # Eliminar el término del texto original
+                            cleaned_text = re.sub(r'\b' + re.escape(term) + r'\b', '', cleaned_text, 1)
 
+                # Contar la frecuencia de los términos extraídos
+                extracted_terms_counts = Counter(extracted_terms)
+
+                # Tokenización sin incluir vacíos
+                tokens = [token for token in cleaned_text.split() if token.strip()]
+
+                # Ordenar tokens alfabéticamente
+                sorted_tokens = sorted(tokens)
+
+                # Obtener frecuencia de cada token
+                token_counts = Counter(sorted_tokens)
+
+                print("Términos extraídos:", extracted_terms)
+                print("Texto limpio:", cleaned_text)
+                print("Frecuencia de tokens:", token_counts)
+
+                # Actualizar la memoria con los términos extraídos y sus frecuencias
+                for term, freq in extracted_terms_counts.items():
+                    self.updateJsonInMemory(json_data["data"], term, docID, freq)
+
+                # Actualizar la memoria con los tokens restantes y sus frecuencias
+                for token, freq in token_counts.items():
+                    self.updateJsonInMemory(json_data["data"], token, (docID + "NO REGEX"), freq)
+
+            # Verificar tamaño del documento
+            self.checkSizeDoc(docID, len(tokens))
+
+        # Guardar los datos procesados
         self.save_json(self.json_file, json_data)
         self.save_terms_file(json_data)
         self.save_statistics_file(json_data)
         self.save_top_terms(self.json_file, top="max")
         self.save_top_terms(self.json_file, top="min")
+
 
     def sort_words_unix(self, filename, output_file):
         command = f"cat {filename} | tr -s '[:space:]' '\\n' | sort > {output_file}"
@@ -209,7 +232,6 @@ class DocumentProcessor:
     def run(self):
         self.openFilesFromFolder()
         self.save_json_statistics(self.json_file)
-        os.remove(self.sorting_file)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Parámetros del programa")
