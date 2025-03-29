@@ -34,8 +34,6 @@ class DocumentProcessor:
             self.loadStopWords()
 
         self.corpus_folder = corpus_folder
-
-        #self.pattern_number = "([0-9]+[,])*[0-9]([.][0-9]+)?"
         self.pattern_url = r"(?:https?|ftp):\/\/(?:www\.)?[\w.-]+(?:\.[a-zA-Z]{2,6})+(?:\/[\w\/._-]*)*(?:\?[\w\&=\-;%\.\d]*)?(?:#[\w-]*)?"
         self.pattern_email = "[a-zA-Z0-9_]+(?:[.][a-zA-Z0-9_]+)*@[a-zA-Z0-9_]+(?:[.][a-zA-Z0-9_]+)*[.][a-zA-Z]{2,5}"
         self.pattern_number = "[0-9]+(?:-[0-9]+)*"
@@ -69,11 +67,6 @@ class DocumentProcessor:
                 return False
         return True
 
-    def findRegex(self, token: str) -> bool:
-        for pattern in self.patterns:
-            aux = re.search(pattern, token)
-            print("token " + token + ":" , aux)
-
     def checkSizeDoc(self, docID: int, size: int):
         if size < self.shortest_doc_size:
             self.shortest_doc = docID
@@ -94,8 +87,6 @@ class DocumentProcessor:
 
         for file in files:
             self.doc_count += 1
-            print(f"---------------------------------- Procesando archivo: {file} -----------------------------------------------/n")
-
             match = re.search(r'\d+', file)
             if not match:
                 continue
@@ -107,58 +98,30 @@ class DocumentProcessor:
 
                 cleaned_text = word1
 
-                # Iterar sobre los patrones para extraer y eliminar los términos coincidentes uno por uno
                 for pattern in self.patterns:
-                    print(f"------------------------ Patron: {pattern}---------------------------\n")
                     matches = re.findall(pattern, cleaned_text)
-                    print(f"MATCHES: {matches}\n")
-                    print(f"CLEAN TEXT: {cleaned_text}\n")
                     if matches:
-                        # Solo agregar términos únicos a la lista de términos extraídos
+
                         extracted_terms.extend([m[0] if isinstance(m, tuple) else m for m in matches])
-
-                        # Eliminar los términos coincidentes del texto solo una vez
                         for term in matches:
-                            # Eliminar el término del texto original
                             cleaned_text = re.sub(r'(?<!\w)' + re.escape(term) + r'(?!\w)', '', cleaned_text, 1)
-                        print(f"[CLEANED] TEXT: {cleaned_text}\n")
-                        #print(f"---------------PATTERN {pattern}---------------------")
-                        #print("E.T: " , extracted_terms)
 
-                # Contar la frecuencia de los términos extraídos
                 extracted_terms_counts = Counter(extracted_terms)
-
-                # Tokenización sin incluir vacíos
                 tokens = [token for token in cleaned_text.split() if token.strip()]
-
-                # Ordenar tokens alfabéticamente
                 sorted_tokens = sorted(tokens)
-
-                # Obtener frecuencia de cada token
                 token_counts = Counter(sorted_tokens)
 
-                print("Términos extraídos:", extracted_terms)
-                print("Texto limpio:", cleaned_text)
-                print("Frecuencia de tokens:", token_counts)
-
-                # Actualizar la memoria con los términos extraídos y sus frecuencias
                 for term, freq in extracted_terms_counts.items():
                     self.updateJsonInMemory(json_data["data"], term, docID, freq)
 
-                # Actualizar la memoria con los tokens restantes y sus frecuencias
                 for token, freq in token_counts.items():
                     self.updateJsonInMemory(json_data["data"], token, (docID + "NO REGEX"), freq)
-
-            # Verificar tamaño del documento
             self.checkSizeDoc(docID, len(tokens))
-
-        # Guardar los datos procesados
         self.save_json(self.json_file, json_data)
         self.save_terms_file(json_data)
         self.save_statistics_file(json_data)
         self.save_top_terms(self.json_file, top="max")
         self.save_top_terms(self.json_file, top="min")
-
 
     def sort_words_unix(self, filename, output_file):
         command = f"cat {filename} | tr -s '[:space:]' '\\n' | sort > {output_file}"
