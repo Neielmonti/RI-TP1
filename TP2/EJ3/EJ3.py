@@ -42,7 +42,13 @@ class DocumentProcessor:
         self.pattern_abbr = r"(?:[A-Z][A-Z]?[a-z]*\.)+[A-Z]?"
         self.pattern_name = "[A-Z][a-z]+(?: [A-Z][a-z]+)*"
 
-        self.patterns = [value for key, value in vars(self).items() if key.startswith("pattern_")]
+        self.patterns = [
+            self.pattern_url,
+            self.pattern_email,
+            self.pattern_number,
+            self.pattern_abbr,
+            self.pattern_name
+        ]
 
     def loadStopWords(self):
         with open(self.stop_words_file, "r", encoding="iso-8859-1") as file:
@@ -88,7 +94,7 @@ class DocumentProcessor:
 
         for file in files:
             self.doc_count += 1
-            print("Procesando archivo:", file)
+            print(f"---------------------------------- Procesando archivo: {file} -----------------------------------------------/n")
 
             match = re.search(r'\d+', file)
             if not match:
@@ -103,7 +109,10 @@ class DocumentProcessor:
 
                 # Iterar sobre los patrones para extraer y eliminar los términos coincidentes uno por uno
                 for pattern in self.patterns:
+                    print(f"------------------------ Patron: {pattern}---------------------------\n")
                     matches = re.findall(pattern, cleaned_text)
+                    print(f"MATCHES: {matches}\n")
+                    print(f"CLEAN TEXT: {cleaned_text}\n")
                     if matches:
                         # Solo agregar términos únicos a la lista de términos extraídos
                         extracted_terms.extend([m[0] if isinstance(m, tuple) else m for m in matches])
@@ -111,7 +120,10 @@ class DocumentProcessor:
                         # Eliminar los términos coincidentes del texto solo una vez
                         for term in matches:
                             # Eliminar el término del texto original
-                            cleaned_text = re.sub(r'\b' + re.escape(term) + r'\b', '', cleaned_text, 1)
+                            cleaned_text = re.sub(r'(?<!\w)' + re.escape(term) + r'(?!\w)', '', cleaned_text, 1)
+                        print(f"[CLEANED] TEXT: {cleaned_text}\n")
+                        #print(f"---------------PATTERN {pattern}---------------------")
+                        #print("E.T: " , extracted_terms)
 
                 # Contar la frecuencia de los términos extraídos
                 extracted_terms_counts = Counter(extracted_terms)
