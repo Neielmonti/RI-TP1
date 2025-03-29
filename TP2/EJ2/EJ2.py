@@ -1,9 +1,9 @@
 import os
 import json
-from os import path
 import re
 import subprocess
 import argparse
+
 
 class DocumentProcessor:
     def __init__(self, corpus_folder, stop_words_folder=None):
@@ -69,11 +69,11 @@ class DocumentProcessor:
         if "statistics" not in json_data:
             json_data["statistics"] = {}
 
-        files = sorted(f for f in os.listdir(self.corpus_folder) if f.endswith('.txt')) 
+        files = sorted(f for f in os.listdir(self.corpus_folder) if f.endswith('.txt'))
 
         for file in files:
             self.doc_count += 1
-            print("Procesando archivo: " + file)
+            #print("Procesando archivo: " + file)
 
             match = re.search(r'\d+', file)
             if not match:
@@ -83,14 +83,14 @@ class DocumentProcessor:
             doc_token_count = 0
 
             self.sort_words_unix(os.path.join(self.corpus_folder, file), self.sorting_file)
-            
+
             with open(self.sorting_file, "r", encoding="iso-8859-1") as f:
                 word1 = self.readlinePlus(f)
-                
+
                 while word1:
                     contador = 1
                     word2 = self.readlinePlus(f)
-                    
+
                     while word1 == word2 and word1:
                         contador += 1
                         word2 = self.readlinePlus(f)
@@ -109,20 +109,23 @@ class DocumentProcessor:
         self.save_top_terms(self.json_file, top="min")
 
     def sort_words_unix(self, filename, output_file):
-        command = f"cat {filename} | tr '[:upper:]' '[:lower:]' | tr -s '[:space:]' '\\n' | sed 's/[^a-z]/ /g' | tr -s ' ' '\\n' | sed '/^$/d' | sort > {output_file}"
+        command = (
+            f"cat {filename} | tr '[:upper:]' '[:lower:]' | tr -s '[:space:]' '\n' "
+            f"| sed 's/[^a-z]/ /g' | tr -s ' ' '\n' | sed '/^$/d' | sort > {output_file}"
+        )
         subprocess.run(command, shell=True, check=True)
 
     def updateJsonInMemory(self, data, palabra, docID, freq):
         if palabra not in data:
             data[palabra] = {"palabra": palabra, "df": 0, "apariciones": {}}
-        
+
         if "cf" not in data[palabra]:
             data[palabra]["cf"] = 0
 
         data[palabra]["cf"] += freq
 
         if docID not in data[palabra]["apariciones"]:
-            data[palabra]["df"] += 1  
+            data[palabra]["df"] += 1
 
         data[palabra]["apariciones"][docID] = freq
 
@@ -141,7 +144,7 @@ class DocumentProcessor:
         json_data = self.load_json(json_file)
 
         term_count = len(json_data["data"])
-        json_data["statistics"] = {"N": self.doc_count, "num_terms": term_count , "num_tokens": self.token_count}
+        json_data["statistics"] = {"N": self.doc_count, "num_terms": term_count, "num_tokens": self.token_count}
 
         self.save_json(json_file, json_data)
 
@@ -149,7 +152,7 @@ class DocumentProcessor:
         terms = json_data["data"]
         term_count = len(terms)
         total_length = sum(len(term) for term in terms)
-        return (total_length // term_count)
+        return total_length // term_count
 
     def save_statistics_file(self, json_data):
         with open(self.statistics_file, "w", encoding="iso-8859-1") as f:
@@ -163,41 +166,18 @@ class DocumentProcessor:
             f.write(f"{term_average_len}\n")
             f.write(f"{terms_with_freq1}\n")
 
-    def save_terms_file(self, json_data):
-        with open(self.terms_file, "w", encoding="iso-8859-1") as f:
-            for term, data in json_data.get("data", {}).items():
-                cf = sum(data["apariciones"].values()) 
-                df = data["df"]
-                f.write(f"{term} {cf} {df}\n")
-
-    def save_top_terms(self, json_file, top="max"):
-        with open(json_file, "r", encoding="iso-8859-1") as file:
-            json_data = json.load(file)
-
-        terms = json_data.get("data", {}) 
-        term_list = [(term, info["cf"]) for term, info in terms.items()]
-        term_list.sort(key=lambda x: x[1], reverse=(top == "max"))
-        top_terms = term_list[:10]
-
-        with open(self.frequency_file, "a", encoding="iso-8859-1") as file:
-            for term, cf in top_terms:
-                file.write(f"{term} {cf}\n")
-
-    def countTermsWithFreq1(self, json_data):
-        terms = json_data.get("data", {})
-        term_list = [(term, info["cf"]) for term, info in terms.items()]
-        terms_with_freq1 = [term for term, cf in term_list if cf == 1]
-        return len(terms_with_freq1)
-
     def run(self):
         self.openFilesFromFolder()
         self.save_json_statistics(self.json_file)
         os.remove(self.sorting_file)
 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Parámetros del programa")
     parser.add_argument("corpus_folder", help="Ruta al directorio que contiene los documentos")
-    parser.add_argument("stop_words_folder", nargs="?", default=None, help="Ruta al archivo que contiene las palabras vacías (opcional)")
+    parser.add_argument(
+        "stop_words_folder", nargs="?", default=None, help="Ruta al archivo que contiene las palabras vacías (opcional)"
+    )
     args = parser.parse_args()
 
     processor = DocumentProcessor(args.corpus_folder, args.stop_words_folder)
