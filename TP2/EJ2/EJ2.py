@@ -166,6 +166,33 @@ class DocumentProcessor:
             f.write(f"{term_average_len}\n")
             f.write(f"{terms_with_freq1}\n")
 
+    def save_terms_file(self, json_data):
+        with open(self.terms_file, "w", encoding="iso-8859-1") as f:
+            for term, data in json_data.get("data", {}).items():
+                cf = sum(data["apariciones"].values()) 
+                df = data["df"]
+                f.write(f"{term} {cf} {df}\n")
+
+    def save_top_terms(self, json_file, top="max"):
+        with open(json_file, "r", encoding="iso-8859-1") as file:
+            json_data = json.load(file)
+
+        terms = json_data.get("data", {}) 
+        term_list = [(term, info["cf"]) for term, info in terms.items()]
+        term_list.sort(key=lambda x: x[1], reverse=(top == "max"))
+        top_terms = term_list[:10]
+
+        with open(self.frequency_file, "a", encoding="iso-8859-1") as file:
+            for term, cf in top_terms:
+                file.write(f"{term} {cf}\n")
+
+    def countTermsWithFreq1(self, json_data):
+        terms = json_data.get("data", {})
+        term_list = [(term, info["cf"]) for term, info in terms.items()]
+        terms_with_freq1 = [term for term, cf in term_list if cf == 1]
+        return len(terms_with_freq1)
+
+
     def run(self):
         self.openFilesFromFolder()
         self.save_json_statistics(self.json_file)
