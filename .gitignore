@@ -23,6 +23,8 @@ TP2/EJ5/vaswani.tar
 TP2/EJ5/lancaster.json
 TP2/EJ5/porter.json
 
+TP2/EJ6/languageIdentificationData.tar
+
 # Para windows
 
 TP2\RI-tknz-data
@@ -47,3 +49,5 @@ TP2\EJ4\palabras.json
 TP2\EJ5\vaswani.tar
 TP2\EJ5\lancaster.json
 TP2\EJ5\porter.json
+
+TP2\EJ6\languageIdentificationData.tar
