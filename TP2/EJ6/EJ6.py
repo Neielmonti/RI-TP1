@@ -2,6 +2,7 @@ import os
 import sys
 from scipy.stats import pearsonr
 
+
 class LanguajeAnalicer:
     def __init__(self, training_folder, test_file, count_pairs):
         self.freq_lists = []
@@ -29,7 +30,11 @@ class LanguajeAnalicer:
         denominator = max_freq[1] - min_freq[1]
         if denominator == 0:
             return [[element[0], 0.5] for element in list]
-        return [[element[0], (element[1] - min_freq[1]) / denominator] for element in list]
+        return [
+            [element[0], (
+                element[1] - min_freq[1]
+                ) / denominator] for element in list
+            ]
 
     def analiseDoc(self, file_path, count_pairs):
         with open(file_path, "r", encoding="iso-8859-1") as f:
@@ -38,17 +43,32 @@ class LanguajeAnalicer:
                 line_freq_list = []
                 self.accounting(line, line_freq_list, count_pairs)
                 line_freq_list = self.normalize_list(line_freq_list)
-                line_freq_list = sorted(line_freq_list, key=lambda x: x[1], reverse=True)
-
+                line_freq_list = sorted(
+                    line_freq_list, key=lambda x: x[1], reverse=True
+                    )
                 correlation_scores = []
                 for item in self.freq_lists:
-                    all_chars = set(car for car, _ in line_freq_list) | set(car for car, _ in item["freqs"])
+                    all_chars = set(
+                        car for car, _ in line_freq_list
+                        ) | set(car for car, _ in item["freqs"])
                     dict1 = dict(line_freq_list)
-                    dict2 = dict(item["freqs"])   
-                    complete_line_freq_list = [[car, dict1.get(car, 0)] for car in all_chars]
-                    complete_item_freq_list = [[car, dict2.get(car, 0)] for car in all_chars]
-                    correlation_scores.append({'languaje': item["languaje"], "score": self.compare_frequencies_pearson(complete_line_freq_list, complete_item_freq_list)})
-                output_list.append(max(correlation_scores, key=lambda x: x["score"])["languaje"])
+                    dict2 = dict(item["freqs"])
+                    complete_line_freq_list = [
+                        [car, dict1.get(car, 0)] for car in all_chars
+                        ]
+                    complete_item_freq_list = [
+                        [car, dict2.get(car, 0)] for car in all_chars
+                        ]
+                    correlation_scores.append({
+                        'languaje': item["languaje"],
+                        "score": self.compare_frequencies_pearson(
+                            complete_line_freq_list, complete_item_freq_list
+                        )
+                    })
+                output_list.append(
+                    max(correlation_scores, key=lambda x: x["score"])
+                    ["languaje"]
+                    )
             with open("salida.txt", "w", encoding="iso-8859-1") as output:
                 for i in range(0, len(output_list) - 1):
                     output.write(f"{i+1} {output_list[i]}\n")
@@ -58,7 +78,7 @@ class LanguajeAnalicer:
         vec2 = [x[1] for x in freq_list2]
         pearson_score = pearsonr(vec1, vec2)[0]
         return pearson_score
-    
+
     def accounting(self, text, freq_list, count_pairs=False):
         if count_pairs:
             self.count_pairs(text, freq_list)
@@ -87,21 +107,29 @@ class LanguajeAnalicer:
             else:
                 freq_list.append([pair, 1])
 
+
 if __name__ == "__main__":
 
     if len(sys.argv) != 3:
-        print("Uso: python script.py <ruta_de_la_carpeta_training> <ruta_al_archivo_test>")
+        print(
+            "Uso: python script.py <ruta_de_la_carpeta_training> "
+            "<ruta_al_archivo_test>"
+        )
         sys.exit(1)
 
     training_folder = sys.argv[1]
     test_file = sys.argv[2]
 
     if not os.path.isdir(training_folder):
-        print(f"Error: La carpeta '{training_folder}' no existe.")
+        print(
+            f"Error: La carpeta '{training_folder}' no existe."
+            )
         sys.exit(1)
 
     if not os.path.isfile(test_file):
-        print(f"Error: El archivo '{test_file}' no existe.")
+        print(
+            f"Error: El archivo '{test_file}' no existe."
+            )
         sys.exit(1)
 
     analicer = LanguajeAnalicer(training_folder, test_file, True)
