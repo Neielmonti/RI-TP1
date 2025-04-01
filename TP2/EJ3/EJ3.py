@@ -7,31 +7,16 @@ from collections import Counter
 
 
 class DocumentProcessor:
-    def __init__(self, corpus_folder, stop_words_folder=None):
+    def __init__(self, corpus_folder):
         self.token_count = 0
         self.doc_count = 0
-        self.min_len = 5
-        self.max_len = 10
-        self.sum_terms_per_doc = 0
 
         self.json_file = "palabras.json"
-        self.sorting_file = "ordenado.txt"
-        self.terms_file = "terminos.txt"
-        self.statistics_file = "estadisticas.txt"
-        self.frequency_file = "frecuencias.txt"
-
-        self.stop_words_file = stop_words_folder
-        self.check_for_stop_words = False
-        self.stopWords = []
 
         self.shortest_doc = ""
         self.shortest_doc_size = float("inf")
         self.largest_doc = ""
         self.largest_doc_size = 0
-
-        if stop_words_folder:
-            self.check_for_stop_words = True
-            self.loadStopWords()
 
         self.corpus_folder = corpus_folder
         self.pattern_url = (
@@ -45,6 +30,7 @@ class DocumentProcessor:
         self.pattern_number = r"[0-9]+(?:-[0-9]+)*"
         self.pattern_abbr = r"(?:[A-Z][A-Z]?[a-z]*\.)+[A-Z]?"
         self.pattern_name = r"[A-Z][a-z]+(?: [A-Z][a-z]+)*"
+        #self.pattern_word = r"\b\w+\b"
 
         self.patterns = [
             self.pattern_url,
@@ -52,6 +38,7 @@ class DocumentProcessor:
             self.pattern_number,
             self.pattern_abbr,
             self.pattern_name,
+        #    self.pattern_word,
         ]
 
     def loadStopWords(self):
@@ -61,8 +48,6 @@ class DocumentProcessor:
 
     def readlinePlus(self, file) -> str:
         aux = re.sub("\n", "", file.readline().strip())
-        if aux != "":
-            self.token_count += 1
         return aux
 
     def isAValidToken(self, token: str) -> bool:
@@ -80,7 +65,7 @@ class DocumentProcessor:
             self.largest_doc = docID
             self.largest_doc_size = size
 
-    def openFilesFromFolder(self):
+    def process_files(self):
         json_data = self.load_json(self.json_file)
         json_data.setdefault("data", {})
         json_data.setdefault("statistics", {})
@@ -110,6 +95,7 @@ class DocumentProcessor:
                             [m[0] if isinstance(m, tuple) else m for m in matches]
                         )
                         for term in matches:
+                            self.token_count += 1
                             cleaned_text = re.sub(
                                 r"(?<!\w)" + re.escape(term) + r"(?!\w)", "", cleaned_text, 1
                             )
@@ -119,6 +105,8 @@ class DocumentProcessor:
                 sorted_tokens = sorted(tokens)
                 token_counts = Counter(sorted_tokens)
 
+                self.token_count += len(tokens)
+                
                 for term, freq in extracted_terms_counts.items():
                     self.updateJsonInMemory(json_data["data"], term, docID, freq)
                 for token, freq in token_counts.items():
@@ -127,7 +115,7 @@ class DocumentProcessor:
             self.checkSizeDoc(docID, len(tokens))
 
         self.save_json(self.json_file, json_data)
-        self.save_statistics_file(json_data)
+        self.save_json_statistics(json_data)
 
     def updateJsonInMemory(self, data, palabra, docID, freq):
         if palabra not in data:
@@ -138,30 +126,39 @@ class DocumentProcessor:
             data[palabra]["df"] += 1
         data[palabra]["apariciones"][docID] = freq
 
+    def save_json_statistics(self, json_data):
+        # Esta funcion calcula las estadisticas (o mejor dicho las guarda)
+        # en el JSON, a partir de atributos del objeto, (a excepcion del
+        # term_count, ya que este lo extrae del len del JSON)
+        term_count = len(json_data["data"])
+        json_data["statistics"] = {
+            "N": self.doc_count,
+            "num_terms": term_count,
+            "num_tokens": self.token_count,
+        }
+        self.save_json(self.json_file, json_data)
+    
+    def load_json(self, json_file):
+        try:
+            with open(json_file, "r", encoding="iso-8859-1") as f:
+                return json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            return {}
+
     def save_json(self, json_file, data):
         with open(json_file, "w", encoding="iso-8859-1") as f:
             json.dump(data, f, ensure_ascii=False, indent=4)
 
-    def save_statistics_file(self, json_data):
-        with open(self.statistics_file, "w", encoding="iso-8859-1") as f:
-            term_count = len(json_data["data"])
-            f.write(f"{self.doc_count}\n")
-            f.write(f"{self.token_count} {term_count}\n")
-
     def run(self):
-        self.openFilesFromFolder()
+        self.process_files()
         self.save_json(self.json_file, self.load_json(self.json_file))
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Parámetros del programa")
     parser.add_argument("corpus_folder", help="Ruta al directorio que contiene los documentos")
-    parser.add_argument(
-        "stop_words_folder", nargs="?", default=None,
-        help="Ruta al archivo que contiene las palabras vacías (opcional)"
-    )
     args = parser.parse_args()
-    processor = DocumentProcessor(args.corpus_folder, args.stop_words_folder)
+    processor = DocumentProcessor(args.corpus_folder)
     processor.run()
 
 

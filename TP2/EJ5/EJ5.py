@@ -20,6 +20,9 @@ class TextProcessor:
 
         self.porter_stemmer = PorterStemmer()
         self.lancaster_stemmer = LancasterStemmer()
+
+        self.porter_stemmer.term_count = 0
+        self.lancaster_stemmer.term_count = 0
         
         self.json_porter_data = self.load_json(self.json_porter_file)
         self.json_lancaster_data = self.load_json(self.json_lancaster_file)
@@ -57,13 +60,14 @@ class TextProcessor:
                     tokens = self.limpiar_y_dividir(line)
                     for token in tokens:
                         self.token_count += 1
+                        print(f"Token: {token}")
                         self.update_json_in_memory(self.json_porter_data["data"], token, docno, 1, self.porter_stemmer)
                         self.update_json_in_memory(self.json_lancaster_data["data"], token, docno, 1, self.lancaster_stemmer)
                     line = trec_file.readline().strip()
         self.save_json(self.json_porter_file, self.json_porter_data)
         self.save_json(self.json_lancaster_file, self.json_lancaster_data)
-        self.save_json_statistics(self.json_porter_file, self.json_porter_data)
-        self.save_json_statistics(self.json_lancaster_file, self.json_lancaster_data)
+        self.save_json_statistics(self.json_porter_file, self.json_porter_data, self.porter_stemmer)
+        self.save_json_statistics(self.json_lancaster_file, self.json_lancaster_data, self.lancaster_stemmer)
 
 
     def limpiar_y_dividir(self,texto):
@@ -80,7 +84,6 @@ class TextProcessor:
             self.sort_words_unix(filename, output_file)
 
     def sort_words_unix(self, filename, output_file):
-        """Ordena las palabras en sistemas Unix."""
         command = (
             f"cat {filename} | tr '[:upper:]' '[:lower:]' | tr -s '[:space:]' '\n' "
             f"| sed 's/[^a-z]/ /g' | tr -s ' ' '\n' | sed '/^$/d' | sort > {output_file}"
@@ -88,7 +91,6 @@ class TextProcessor:
         subprocess.run(command, shell=True, check=True)
 
     def sort_words_windows(self, filename, output_file):
-        """Ordena las palabras en Windows usando un heap."""
         heap = []
 
         with open(filename, 'r', encoding='utf-8') as file:
@@ -104,17 +106,21 @@ class TextProcessor:
 
     def update_json_in_memory(self, data, palabra, doc_id, freq, stemmer):
         """Actualiza el diccionario JSON en memoria con la información de frecuencia de términos."""
-        palabra_stemmed = stemmer.stem(palabra)
+        stemmed_term = stemmer.stem(palabra)
 
-        if palabra_stemmed not in data:
-            data[palabra_stemmed] = {
-                "palabra": palabra_stemmed, "df": 0, "apariciones": {}
+        stemmer.term_count += 1
+
+        print(f"Stemmed by {stemmer.__class__.__name__}: {stemmed_term}")
+
+        if stemmed_term not in data:
+            data[stemmed_term] = {
+                "palabra": stemmed_term, "df": 0, "apariciones": {}
             }
 
-        if doc_id not in data[palabra_stemmed]["apariciones"]:
-            data[palabra_stemmed]["df"] += 1
+        if doc_id not in data[stemmed_term]["apariciones"]:
+            data[stemmed_term]["df"] += 1
 
-        data[palabra_stemmed]["apariciones"][doc_id] = freq
+        data[stemmed_term]["apariciones"][doc_id] = freq
 
     def load_json(self,json_file):
         """Carga los datos desde el archivo JSON si existe."""
@@ -129,7 +135,7 @@ class TextProcessor:
         with open(file, "w", encoding="iso-8859-1") as f:
             json.dump(data, f, ensure_ascii=False, indent=4)
 
-    def save_json_statistics(self, file, data):
+    def save_json_statistics(self, file, data, stemmer):
         """Guarda estadísticas del corpus en el JSON."""
         data["statistics"] = {
             "N": self.doc_count,

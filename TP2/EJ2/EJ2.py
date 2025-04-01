@@ -9,8 +9,8 @@ class DocumentProcessor:
     def __init__(self, corpus_folder, stop_words_folder=None):
         self.token_count = 0
         self.doc_count = 0
-        self.min_len = 5
-        self.max_len = 10
+        self.min_len = 4
+        self.max_len = 15
         self.sum_terms_per_doc = 0
 
         self.json_file = "palabras.json"
@@ -163,7 +163,9 @@ class DocumentProcessor:
             f.write(f"{self.doc_count}\n")
             f.write(f"{self.token_count} {term_count}\n")
             f.write(f"{self.token_count/self.doc_count} {self.sum_terms_per_doc/self.doc_count}\n")
+            f.write(f"{self.token_count} {term_count}\n")
             f.write(f"{term_average_len}\n")
+            f.write(f"{self.shortest_doc_size} {self.largest_doc_size}\n")
             f.write(f"{terms_with_freq1}\n")
 
     def save_terms_file(self, json_data):
