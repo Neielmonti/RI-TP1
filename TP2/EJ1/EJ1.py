@@ -80,20 +80,20 @@ def updateJsonInMemory(data, palabra, docID, freq):
 
 def load_json(json_file):
     try:
-        with open(json_file, "r", encoding="iso-8859-1") as f:
+        with open(json_file, "r", encoding="utf-8") as f:
             return json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         return {}
 
 
 def save_json(json_file, data):
-    with open(json_file, "w", encoding="iso-8859-1") as f:
+    with open(json_file, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
 
 
 def get_json_values(json_file, palabra):
     try:
-        with open(json_file, "r", encoding="iso-8859-1") as f:
+        with open(json_file, "r", encoding="utf-8") as f:
             data = json.load(f)
         return data.get("data", {}).get(palabra, None)
     except (FileNotFoundError, json.JSONDecodeError):
