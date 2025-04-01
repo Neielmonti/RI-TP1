@@ -4,7 +4,6 @@ import argparse
 import matplotlib.pyplot as plt
 from collections import Counter
 
-
 class DocumentProcessor:
     def __init__(self, corpus_file, stop_words_folder=None):
         self.stop_words_file = stop_words_folder
@@ -44,7 +43,6 @@ class DocumentProcessor:
         poly = np.poly1d(coefficients)
         estimated_freqs = np.exp(poly(log_ranks))
 
-        # Gráfico en escala lineal
         plt.figure(figsize=(10, 5))
         plt.plot(ranks, sorted_counts, label="Datos originales", marker="o")
         plt.plot(ranks, estimated_freqs, label="Ajuste (Polyfit)", linestyle="--")
@@ -53,9 +51,7 @@ class DocumentProcessor:
         plt.title("Distribución de frecuencia de palabras (Escala Lineal)")
         plt.legend()
         plt.grid()
-        plt.show()
 
-        # Gráfico en escala log-log
         plt.figure(figsize=(10, 5))
         plt.loglog(ranks, sorted_counts, label="Datos originales", marker="o")
         plt.loglog(ranks, estimated_freqs, label="Ajuste (Polyfit)", linestyle="--")
