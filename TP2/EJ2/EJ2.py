@@ -71,7 +71,9 @@ class DocumentProcessor:
         if "statistics" not in json_data:
             json_data["statistics"] = {}
 
-        files = sorted(f for f in os.listdir(self.corpus_folder) if f.endswith('.txt'))
+        files = sorted(
+            f for f in os.listdir(self.corpus_folder) if f.endswith('.txt')
+            )
 
         for file in files:
             self.doc_count += 1
@@ -80,7 +82,9 @@ class DocumentProcessor:
 
             doc_token_count = 0
 
-            self.sort_words(os.path.join(self.corpus_folder, file), self.sorting_file)
+            self.sort_words(
+                os.path.join(self.corpus_folder, file), self.sorting_file
+                )
 
             with open(self.sorting_file, "r", encoding="utf-8") as f:
                 word1 = self.readlinePlus(f)
@@ -93,7 +97,9 @@ class DocumentProcessor:
                         contador += 1
                         word2 = self.readlinePlus(f)
                     if self.isAValidToken(word1):
-                        self.updateJsonInMemory(json_data["data"], word1, docID, contador)
+                        self.updateJsonInMemory(
+                            json_data["data"], word1, docID, contador
+                            )
                         self.sum_terms_per_doc += 1
                     doc_token_count += contador
                     word1 = word2
@@ -168,7 +174,11 @@ class DocumentProcessor:
         json_data = self.load_json(json_file)
 
         term_count = len(json_data["data"])
-        json_data["statistics"] = {"N": self.doc_count, "num_terms": term_count, "num_tokens": self.token_count}
+        json_data["statistics"] = {
+            "N": self.doc_count,
+            "num_terms": term_count,
+            "num_tokens": self.token_count
+            }
 
         self.save_json(json_file, json_data)
 
@@ -186,7 +196,9 @@ class DocumentProcessor:
 
             f.write(f"{self.doc_count}\n")
             f.write(f"{self.token_count} {term_count}\n")
-            f.write(f"{self.token_count/self.doc_count} {self.sum_terms_per_doc/self.doc_count}\n")
+            f.write(
+                f"{self.token_count/self.doc_count} {self.sum_terms_per_doc/self.doc_count}\n"
+                )
             f.write(f"{self.token_count} {term_count}\n")
             f.write(f"{term_average_len}\n")
             f.write(f"{self.shortest_doc_size} {self.largest_doc_size}\n")
@@ -195,7 +207,7 @@ class DocumentProcessor:
     def save_terms_file(self, json_data):
         with open(self.terms_file, "w", encoding="utf-8") as f:
             for term, data in json_data.get("data", {}).items():
-                cf = sum(data["apariciones"].values()) 
+                cf = sum(data["apariciones"].values())
                 df = data["df"]
                 f.write(f"{term} {cf} {df}\n")
 
@@ -203,7 +215,7 @@ class DocumentProcessor:
         with open(json_file, "r", encoding="utf-8") as file:
             json_data = json.load(file)
 
-        terms = json_data.get("data", {}) 
+        terms = json_data.get("data", {})
         term_list = [(term, info["cf"]) for term, info in terms.items()]
         term_list.sort(key=lambda x: x[1], reverse=(top == "max"))
         top_terms = term_list[:10]
@@ -226,12 +238,17 @@ class DocumentProcessor:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Parámetros del programa")
-    parser.add_argument("corpus_folder", help="Ruta al directorio que contiene los documentos")
     parser.add_argument(
-        "stop_words_folder", nargs="?", default=None, help="Ruta al archivo que contiene las palabras vacías (opcional)"
+        "corpus_folder",
+        help="Ruta al directorio que contiene los documentos"
+        )
+    parser.add_argument(
+        "stop_words_folder",
+        nargs="?",
+        default=None,
+        help="Ruta al archivo que contiene las palabras vacías (opcional)"
     )
     args = parser.parse_args()
 
     processor = DocumentProcessor(args.corpus_folder, args.stop_words_folder)
     processor.run()
-

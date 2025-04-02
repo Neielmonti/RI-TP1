@@ -1,7 +1,6 @@
 import os
 import json
 import re
-import subprocess
 import argparse
 from collections import Counter
 
@@ -30,7 +29,6 @@ class DocumentProcessor:
         self.pattern_number = r"[0-9]+(?:-[0-9]+)*"
         self.pattern_abbr = r"(?:[A-Z][A-Z]?[a-z]*\.)+[A-Z]?"
         self.pattern_name = r"[A-Z][a-z]+(?: [A-Z][a-z]+)*"
-        #self.pattern_word = r"\b\w+\b"
 
         self.patterns = [
             self.pattern_url,
@@ -38,7 +36,6 @@ class DocumentProcessor:
             self.pattern_number,
             self.pattern_abbr,
             self.pattern_name,
-        #    self.pattern_word,
         ]
 
     def loadStopWords(self):
@@ -93,21 +90,32 @@ class DocumentProcessor:
                         for term in matches:
                             self.token_count += 1
                             cleaned_text = re.sub(
-                                r"(?<!\w)" + re.escape(term) + r"(?!\w)", "", cleaned_text, 1
+                                r"(?<!\w)" + re.escape(term) + r"(?!\w)",
+                                "",
+                                cleaned_text,
+                                1
                             )
 
-                cleaned_text = re.sub(r"[^a-zA-ZáéíóúüñÁÉÍÓÚÜÑ]+", " ", cleaned_text).strip()
+                cleaned_text = re.sub(
+                    r"[^a-zA-ZáéíóúüñÁÉÍÓÚÜÑ]+",
+                    " ",
+                    cleaned_text
+                    ).strip()
                 extracted_terms_counts = Counter(extracted_terms)
-                tokens = [token for token in cleaned_text.split() if token.strip()]
+                tokens = [
+                    token for token in cleaned_text.split() if token.strip()
+                    ]
                 sorted_tokens = sorted(tokens)
                 token_counts = Counter(sorted_tokens)
 
                 self.token_count += len(tokens)
-                
+
                 for term, freq in extracted_terms_counts.items():
                     self.updateJsonInMemory(json_data["data"], term, docID, freq)
                 for token, freq in token_counts.items():
-                    self.updateJsonInMemory(json_data["data"], token, docID , freq)
+                    self.updateJsonInMemory(
+                        json_data["data"], token, docID, freq
+                        )
 
             self.checkSizeDoc(docID, len(tokens))
 
@@ -140,7 +148,7 @@ class DocumentProcessor:
             "num_tokens": self.token_count,
         }
         self.save_json(self.json_file, json_data)
-    
+
     def load_json(self, json_file):
         try:
             with open(json_file, "r", encoding="utf-8") as f:
@@ -159,9 +167,10 @@ class DocumentProcessor:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Parámetros del programa")
-    parser.add_argument("corpus_folder", help="Ruta al directorio que contiene los documentos")
+    parser.add_argument(
+        "corpus_folder",
+        help="Ruta al directorio que contiene los documentos"
+        )
     args = parser.parse_args()
     processor = DocumentProcessor(args.corpus_folder)
     processor.run()
-
-
