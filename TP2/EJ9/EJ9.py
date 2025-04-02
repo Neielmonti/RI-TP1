@@ -37,11 +37,11 @@ class DocumentProcessor:
 
         # Estas asignaciones las dejé para jugar :)
 
-        # K-MEJOR-AJUSTE = 4.16
-        # BETA-MEJOR-AJUSTE = 0.67
+        # K-MEJOR-AJUSTE = 4.16 # Este valor lo obtengo a partir de curve_fit
+        # BETA-MEJOR-AJUSTE = 0.67 # Este tambien
 
-        K = 4.16
-        beta = 0.6
+        # K = 4.16
+        # beta = 0.6
         
         # Calculo de valores ajustados
         adjusted_values = self.heaps_function(np.array(self.total_terms), K, beta)

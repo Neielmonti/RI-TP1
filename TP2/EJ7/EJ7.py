@@ -9,14 +9,14 @@ class DocumentProcessor:
         self.check_for_stop_words = False
         self.stopWords = []
         self.pattern_word = r"\b\w+\b"
-        self.openFilesFromFolder(corpus_file)
+        self.process_text(corpus_file)
 
     def loadStopWords(self):
         with open(self.stop_words_file, "r", encoding="utf-8") as file:
             for line in file:
                 self.stopWords.extend(line.strip().lower().split())
 
-    def openFilesFromFolder(self, corpus_file):
+    def process_text(self, corpus_file):
         with open(corpus_file, "r", encoding="utf-8") as file:
             extracted_terms = []
             for line in file:
@@ -35,7 +35,7 @@ class DocumentProcessor:
         poly = np.poly1d(coefficients)
         estimated_freqs = np.exp(poly(log_ranks))
 
-        # Cálculo de determinacion
+        # Calculo de determinacion
         ss_total = np.sum((log_freqs - np.mean(log_freqs)) ** 2)
         ss_residual = np.sum((log_freqs - poly(log_ranks)) ** 2)
         r_squared = 1 - (ss_residual / ss_total)
@@ -61,6 +61,11 @@ class DocumentProcessor:
         plt.grid()
         plt.show()
 
+    def save_data(self):
+        sorted_terms = self.extracted_terms_counts.most_common()
+        with open("zipf.txt", "w", encoding="utf-8") as f:
+            for term, freq in sorted_terms:
+                f.write(f"{term} {freq}\n")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Parámetros del programa")
@@ -69,3 +74,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
     processor = DocumentProcessor(args.corpus_file)
     processor.fit_and_plot()
+    processor.save_data()
