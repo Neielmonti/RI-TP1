@@ -9,6 +9,7 @@ TP2/EJ2/estadisticas.txt
 TP2/EJ2/frecuencias.txt
 TP2/EJ2/terminos.txt
 TP2/EJ2/palabras.json
+TP2/EJ2/RI-tknz-data
 
 TP2/EJ3/RE_collection_test
 TP2/EJ3/estadisticas.txt
@@ -23,8 +24,9 @@ TP2/EJ5/vaswani
 TP2/EJ5/lancaster.json
 TP2/EJ5/porter.json
 
-TP2/EJ6/languageIdentificationData.tar
-TP2/EJ6/salida.txt
+TP2/EJ6/languageIdentificationData
+TP2/EJ6/output.txt
+TP2/EJ6/langdetect
 
 # Para windows
 
@@ -37,6 +39,7 @@ TP2\EJ2\estadisticas.txt
 TP2\EJ2\frecuencias.txt
 TP2\EJ2\terminos.txt
 TP2\EJ2\palabras.json
+TP2\EJ2\RI-tknz-data
 
 TP2\EJ3\RE_collection_test
 TP2\EJ3\estadisticas.txt
@@ -51,5 +54,6 @@ TP2\EJ5\vaswani
 TP2\EJ5\lancaster.json
 TP2\EJ5\porter.json
 
-TP2\EJ6\languageIdentificationData.tar
-TP2\EJ6\salida.txt
+TP2\EJ6\languageIdentificationData
+TP2\EJ6\output.txt
+TP2\EJ6\langdetect

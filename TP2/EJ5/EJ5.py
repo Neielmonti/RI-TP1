@@ -8,8 +8,8 @@ import sys
 from nltk.stem import PorterStemmer, LancasterStemmer
 
 class TextProcessor:
-    def __init__(self, folder):
-        self.folder = folder
+    def __init__(self, file):
+        self.file = file
 
         self.json_porter_file = "porter.json"
         self.json_lancaster_file = "lancaster.json"
@@ -43,10 +43,10 @@ class TextProcessor:
             self.token_count += 1
         return aux
 
-    def open_files_from_folder(self):
+    def process_text(self):
         pattern = r"<DOCNO>\s*([0-9]+)\s*</DOCNO>"
 
-        with open(self.folder) as trec_file:
+        with open(self.file) as trec_file:
             line = trec_file.readline().strip()
             while line:
                 if line == "<DOC>":
@@ -57,7 +57,7 @@ class TextProcessor:
                     docno = docno_match.group(1)
                     line = trec_file.readline().strip()
                 if line != "<\DOC>":
-                    tokens = self.limpiar_y_dividir(line)
+                    tokens = self.clean_and_divid(line)
                     for token in tokens:
                         self.token_count += 1
                         print(f"Token: {token}")
@@ -70,10 +70,10 @@ class TextProcessor:
         self.save_json_statistics(self.json_lancaster_file, self.json_lancaster_data, self.lancaster_stemmer)
 
 
-    def limpiar_y_dividir(self,texto):
-        texto_limpio = re.sub(r'[^a-zA-Z0-9ÁÉÍÓÚáéíóúÑñ]', ' ', texto)
-        palabras = texto_limpio.split()
-        return palabras
+    def clean_and_divide(self,text):
+        clean_text = re.sub(r'[^a-zA-Z0-9ÁÉÍÓÚáéíóúÑñ]', ' ', text)
+        words = clean_text.split()
+        return words
 
 
     def sort_words_so(self, filename, output_file):
@@ -151,11 +151,11 @@ if __name__ == "__main__":
         print("Uso: python script.py <ruta_del_folder_corpus>")
         sys.exit(1)
 
-    folder_corpus = sys.argv[1]
+    file_corpus = sys.argv[1]
 
-    if not os.path.isfile(folder_corpus):
-        print(f"Error: El folder '{folder_corpus}' no existe.")
+    if not os.path.isfile(file_corpus):
+        print(f"Error: El archivo '{file_corpus}' no existe.")
         sys.exit(1)
 
-    processor = TextProcessor(folder_corpus)
-    processor.open_files_from_folder()
+    processor = TextProcessor(file_corpus)
+    processor.process_text()

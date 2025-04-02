@@ -69,7 +69,7 @@ class LanguajeAnalicer:
                     max(correlation_scores, key=lambda x: x["score"])
                     ["languaje"]
                     )
-            with open("salida.txt", "w", encoding="iso-8859-1") as output:
+            with open("output.txt", "w", encoding="iso-8859-1") as output:
                 for i in range(0, len(output_list) - 1):
                     output.write(f"{i+1} {output_list[i]}\n")
 

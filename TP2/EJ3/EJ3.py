@@ -75,11 +75,7 @@ class DocumentProcessor:
         )
 
         for file in files:
-            self.doc_count += 1
-            match = re.search(r"\d+", file)
-            if not match:
-                continue
-            docID = match.group()
+            docID = file
 
             with open(
                 os.path.join(self.corpus_folder, file), "r", encoding="iso-8859-1"
@@ -100,6 +96,7 @@ class DocumentProcessor:
                                 r"(?<!\w)" + re.escape(term) + r"(?!\w)", "", cleaned_text, 1
                             )
 
+                cleaned_text = re.sub(r"[^a-zA-ZáéíóúüñÁÉÍÓÚÜÑ]+", " ", cleaned_text).strip()
                 extracted_terms_counts = Counter(extracted_terms)
                 tokens = [token for token in cleaned_text.split() if token.strip()]
                 sorted_tokens = sorted(tokens)
@@ -110,21 +107,27 @@ class DocumentProcessor:
                 for term, freq in extracted_terms_counts.items():
                     self.updateJsonInMemory(json_data["data"], term, docID, freq)
                 for token, freq in token_counts.items():
-                    self.updateJsonInMemory(json_data["data"], token, docID + "NO REGEX", freq)
+                    self.updateJsonInMemory(json_data["data"], token, docID , freq)
 
             self.checkSizeDoc(docID, len(tokens))
 
         self.save_json(self.json_file, json_data)
         self.save_json_statistics(json_data)
 
-    def updateJsonInMemory(self, data, palabra, docID, freq):
-        if palabra not in data:
-            data[palabra] = {"palabra": palabra, "df": 0, "apariciones": {}}
-        data[palabra].setdefault("cf", 0)
-        data[palabra]["cf"] += freq
-        if docID not in data[palabra]["apariciones"]:
-            data[palabra]["df"] += 1
-        data[palabra]["apariciones"][docID] = freq
+    def updateJsonInMemory(self, data, word, docID, freq):
+        term = word.lower()
+        if term not in data:
+            data[term] = {"palabra": term, "df": 0, "apariciones": {}}
+
+        if "cf" not in data[term]:
+            data[term]["cf"] = 0
+
+        data[term]["cf"] += freq
+
+        if docID not in data[term]["apariciones"]:
+            data[term]["df"] += 1
+
+        data[term]["apariciones"][docID] = freq
 
     def save_json_statistics(self, json_data):
         # Esta funcion calcula las estadisticas (o mejor dicho las guarda)

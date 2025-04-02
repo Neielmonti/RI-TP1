@@ -31,10 +31,7 @@ class TextProcessor:
 
         for file in files:
             self.doc_count += 1
-            match = re.search(r'\d+', file)
-            if not match:
-                continue
-            docID = match.group()
+            docID = file
 
             # Creamos el archivo "ordenado.txt" para el corte de control
             self.sort_words(os.path.join(self.folder, file), self.sorting_file)

@@ -1,6 +1,8 @@
 import os
 import json
 import re
+import platform
+import heapq
 import subprocess
 import argparse
 
@@ -9,8 +11,8 @@ class DocumentProcessor:
     def __init__(self, corpus_folder, stop_words_folder=None):
         self.token_count = 0
         self.doc_count = 0
-        self.min_len = 4
-        self.max_len = 15
+        self.min_len = 0
+        self.max_len = 3000
         self.sum_terms_per_doc = 0
 
         self.json_file = "palabras.json"
@@ -73,18 +75,14 @@ class DocumentProcessor:
 
         for file in files:
             self.doc_count += 1
-            #print("Procesando archivo: " + file)
 
-            match = re.search(r'\d+', file)
-            if not match:
-                continue
-            docID = match.group()
+            docID = file
 
             doc_token_count = 0
 
-            self.sort_words_unix(os.path.join(self.corpus_folder, file), self.sorting_file)
+            self.sort_words(os.path.join(self.corpus_folder, file), self.sorting_file)
 
-            with open(self.sorting_file, "r", encoding="iso-8859-1") as f:
+            with open(self.sorting_file, "r", encoding="utf-8") as f:
                 word1 = self.readlinePlus(f)
 
                 while word1:
@@ -108,36 +106,62 @@ class DocumentProcessor:
         self.save_top_terms(self.json_file, top="max")
         self.save_top_terms(self.json_file, top="min")
 
+    def sort_words(self, filename, output_file):
+        if platform.system() == "Windows":
+            self.sort_words_windows(filename, output_file)
+        else:
+            self.sort_words_unix(filename, output_file)
+
     def sort_words_unix(self, filename, output_file):
+        # Creo un archivo nuevo, reemplazando Uppercase por Lowecase,
+        # haciendo un split en los espacios, dejando cada palabra en
+        # una linea del texto, y removiendo todos los caracteres que
+        # no sean letras.
         command = (
             f"cat {filename} | tr '[:upper:]' '[:lower:]' | tr -s '[:space:]' '\n' "
             f"| sed 's/[^a-z]/ /g' | tr -s ' ' '\n' | sed '/^$/d' | sort > {output_file}"
         )
         subprocess.run(command, shell=True, check=True)
 
-    def updateJsonInMemory(self, data, palabra, docID, freq):
-        if palabra not in data:
-            data[palabra] = {"palabra": palabra, "df": 0, "apariciones": {}}
+    def sort_words_windows(self, filename, output_file):
+        # Similar a la funcion de Unix, nos quedamos con un archivo con
+        # el texto limpio y ordenado.
+        heap = []
 
-        if "cf" not in data[palabra]:
-            data[palabra]["cf"] = 0
+        with open(filename, 'r', encoding='utf-8') as file:
+            for line in file:
+                line = re.sub(r'[^a-z\s]', ' ', line.lower())
+                for word in line.split():
+                    heapq.heappush(heap, word)
 
-        data[palabra]["cf"] += freq
+        with open(output_file, 'w', encoding='utf-8') as output:
+            while heap:
+                output.write(heapq.heappop(heap) + '\n')
 
-        if docID not in data[palabra]["apariciones"]:
-            data[palabra]["df"] += 1
+    def updateJsonInMemory(self, data, word, docID, freq):
+        term = word.lower()
+        if term not in data:
+            data[term] = {"palabra": term, "df": 0, "apariciones": {}}
 
-        data[palabra]["apariciones"][docID] = freq
+        if "cf" not in data[term]:
+            data[term]["cf"] = 0
+
+        data[term]["cf"] += freq
+
+        if docID not in data[term]["apariciones"]:
+            data[term]["df"] += 1
+
+        data[term]["apariciones"][docID] = freq
 
     def load_json(self, json_file):
         try:
-            with open(json_file, "r", encoding="iso-8859-1") as f:
+            with open(json_file, "r", encoding="utf-8") as f:
                 return json.load(f)
         except (FileNotFoundError, json.JSONDecodeError):
             return {}
 
     def save_json(self, json_file, data):
-        with open(json_file, "w", encoding="iso-8859-1") as f:
+        with open(json_file, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=4)
 
     def save_json_statistics(self, json_file):
@@ -155,7 +179,7 @@ class DocumentProcessor:
         return total_length // term_count
 
     def save_statistics_file(self, json_data):
-        with open(self.statistics_file, "w", encoding="iso-8859-1") as f:
+        with open(self.statistics_file, "w", encoding="utf-8") as f:
             term_count = len(json_data["data"])
             term_average_len = self.get_terms_average_len(json_data)
             terms_with_freq1 = self.countTermsWithFreq1(json_data)
@@ -176,7 +200,7 @@ class DocumentProcessor:
                 f.write(f"{term} {cf} {df}\n")
 
     def save_top_terms(self, json_file, top="max"):
-        with open(json_file, "r", encoding="iso-8859-1") as file:
+        with open(json_file, "r", encoding="utf-8") as file:
             json_data = json.load(file)
 
         terms = json_data.get("data", {}) 
@@ -184,7 +208,7 @@ class DocumentProcessor:
         term_list.sort(key=lambda x: x[1], reverse=(top == "max"))
         top_terms = term_list[:10]
 
-        with open(self.frequency_file, "a", encoding="iso-8859-1") as file:
+        with open(self.frequency_file, "a", encoding="utf-8") as file:
             for term, cf in top_terms:
                 file.write(f"{term} {cf}\n")
 
@@ -193,7 +217,6 @@ class DocumentProcessor:
         term_list = [(term, info["cf"]) for term, info in terms.items()]
         terms_with_freq1 = [term for term, cf in term_list if cf == 1]
         return len(terms_with_freq1)
-
 
     def run(self):
         self.openFilesFromFolder()

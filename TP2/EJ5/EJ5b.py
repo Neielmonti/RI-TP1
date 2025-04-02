@@ -5,17 +5,26 @@ import subprocess
 import platform
 import heapq
 import sys
-from nltk.stem import SnowballStemmer
+import time
+from nltk.stem import PorterStemmer, LancasterStemmer
 
 
 class TextProcessor:
-    def __init__(self, folder):
-        self.folder = folder
-        self.json_file = "palabras.json"
-        self.sorting_file = "ordenado.txt"
+    def __init__(self, file: str, stemmer_type: str):
+        self.file = file
         self.token_count = 0
         self.doc_count = 0
-        self.stemmer = SnowballStemmer("spanish")
+
+        if stemmer_type == "porter":
+            self.json_file = "porter.json"
+            self.stemmer = PorterStemmer()
+        elif stemmer_type == "lancaster":
+            self.json_file = "lancaster.json"
+            self.stemmer = LancasterStemmer()
+        else:
+            print("Elija un stemmer valido")
+            sys.exit(1)
+        
         self.json_data = self.load_json()
 
         if "data" not in self.json_data:
@@ -23,39 +32,41 @@ class TextProcessor:
         if "statistics" not in self.json_data:
             self.json_data["statistics"] = {}
 
-    def readline_plus(self, file) -> str:
+    def readline_plus(self, file: str) -> str:
         """Lee una línea del archivo y actualiza el contador de tokens."""
         aux = re.sub("\n", "", file.readline())
         if aux:
             self.token_count += 1
         return aux
 
-    def open_files_from_folder(self):
-        """Abre y procesa los archivos de texto dentro del folder."""
-        files = sorted(f for f in os.listdir(self.folder) if f.endswith('.txt'))
+    def process_text(self):
+        pattern = r"<DOCNO>\s*([0-9]+)\s*</DOCNO>"
 
-        for file in files:
-            doc_id = file
-
-            # Ordenar las palabras dentro del archivo
-            self.sort_words_so(os.path.join(self.folder, file), self.sorting_file)
-
-            with open(self.sorting_file, "r", encoding="utf-8") as f:
-                word1 = self.readline_plus(f)
-                while word1:
-                    contador = 1
-                    word2 = self.readline_plus(f)
-
-                    while word1 == word2 and word1:
-                        contador += 1
-                        word2 = self.readline_plus(f)
-
-                    self.update_json_in_memory(self.json_data["data"], word1, doc_id, contador)
-                    word1 = word2
-
+        with open(self.file) as trec_file:
+            line = trec_file.readline().strip()
+            while line:
+                if line == "<DOC>":
+                # New document.
+                    self.doc_count += 1
+                    line = trec_file.readline().strip()
+                    docno_match = re.search(pattern, line)
+                    docno = docno_match.group(1)
+                    line = trec_file.readline().strip()
+                if line != "<\DOC>":
+                    tokens = self.clean_and_divide(line)
+                    for token in tokens:
+                        self.token_count += 1
+                        self.update_json_in_memory(self.json_data["data"], token, docno, 1)
+                    line = trec_file.readline().strip()
         self.save_json()
+        self.save_json_statistics()
 
-    def sort_words_so(self, filename, output_file):
+    def clean_and_divide(self,text):
+        clean_text = re.sub(r'[^a-zA-Z0-9ÁÉÍÓÚáéíóúÑñ]', ' ', text)
+        words = clean_text.split()
+        return words
+    
+    def sort_words_so(self, filename: str, output_file: str):
         """Ordena las palabras de un archivo usando el método adecuado según el sistema operativo."""
         if platform.system() == "Windows":
             self.sort_words_windows(filename, output_file)
@@ -84,19 +95,19 @@ class TextProcessor:
             while heap:
                 output.write(heapq.heappop(heap) + '\n')
 
-    def update_json_in_memory(self, data, palabra, doc_id, freq):
-        """Actualiza el diccionario JSON en memoria con la información de frecuencia de términos."""
-        palabra_stemmed = self.stemmer.stem(palabra)
+    def update_json_in_memory(self, data, word: str, doc_id: str, freq: int):
+        term = word.lower()
+        stemmed_term = self.stemmer.stem(term)
 
-        if palabra_stemmed not in data:
-            data[palabra_stemmed] = {
-                "palabra": palabra_stemmed, "df": 0, "apariciones": {}
+        if stemmed_term not in data:
+            data[stemmed_term] = {
+                "palabra": stemmed_term, "df": 0, "apariciones": {}
             }
 
-        if doc_id not in data[palabra_stemmed]["apariciones"]:
-            data[palabra_stemmed]["df"] += 1
+        if doc_id not in data[stemmed_term]["apariciones"]:
+            data[stemmed_term]["df"] += 1
 
-        data[palabra_stemmed]["apariciones"][doc_id] = freq
+        data[stemmed_term]["apariciones"][doc_id] = freq
 
     def load_json(self):
         """Carga los datos desde el archivo JSON si existe."""
@@ -122,18 +133,22 @@ class TextProcessor:
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        print("Uso: python script.py <ruta_del_folder_corpus>")
+    if len(sys.argv) != 3:
+        print("Uso: python script.py <ruta_del_archivo_corpus> <stemmer_type: porter | lancaster>")
         sys.exit(1)
 
-    folder_corpus = sys.argv[1]
+    file_corpus = sys.argv[1]
+    stemmer_type = sys.argv[2]
 
-    if not os.path.isdir(folder_corpus):
-        print(f"Error: El folder '{folder_corpus}' no existe.")
+    if not os.path.isfile(file_corpus):
+        print(f"Error: El archivo '{file_corpus}' no existe.")
         sys.exit(1)
 
-    processor = TextProcessor(folder_corpus)
-    processor.open_files_from_folder()
+    start_time = time.time()
+
+    processor = TextProcessor(file_corpus, stemmer_type)
+    processor.process_text()
     processor.save_json_statistics()
 
-    os.remove(processor.sorting_file)
+    end_time = time.time()
+    print(f"Tiempo de ejecución con {stemmer_type} stemmer: {end_time - start_time:.2f} segundos")
