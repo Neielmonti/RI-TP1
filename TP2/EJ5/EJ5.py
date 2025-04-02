@@ -125,14 +125,14 @@ class TextProcessor:
     def load_json(self,json_file):
         """Carga los datos desde el archivo JSON si existe."""
         try:
-            with open(json_file, "r", encoding="iso-8859-1") as f:
+            with open(json_file, "r", encoding="utf-8") as f:
                 return json.load(f)
         except (FileNotFoundError, json.JSONDecodeError):
             return {}
 
     def save_json(self, file, data):
         """Guarda los datos en el archivo JSON."""
-        with open(file, "w", encoding="iso-8859-1") as f:
+        with open(file, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=4)
 
     def save_json_statistics(self, file, data, stemmer):

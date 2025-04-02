@@ -37,7 +37,7 @@ class DocumentProcessor:
         self.corpus_folder = corpus_folder
 
     def loadStopWords(self):
-        with open(self.stop_words_file, "r", encoding="iso-8859-1") as file:
+        with open(self.stop_words_file, "r", encoding="utf-8") as file:
             for line in file:
                 self.stopWords.extend(line.strip().lower().split())
 
@@ -193,7 +193,7 @@ class DocumentProcessor:
             f.write(f"{terms_with_freq1}\n")
 
     def save_terms_file(self, json_data):
-        with open(self.terms_file, "w", encoding="iso-8859-1") as f:
+        with open(self.terms_file, "w", encoding="utf-8") as f:
             for term, data in json_data.get("data", {}).items():
                 cf = sum(data["apariciones"].values()) 
                 df = data["df"]

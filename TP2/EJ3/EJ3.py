@@ -42,7 +42,7 @@ class DocumentProcessor:
         ]
 
     def loadStopWords(self):
-        with open(self.stop_words_file, "r", encoding="iso-8859-1") as file:
+        with open(self.stop_words_file, "r", encoding="utf-8") as file:
             for line in file:
                 self.stopWords.extend(line.strip().lower().split())
 
@@ -78,7 +78,7 @@ class DocumentProcessor:
             docID = file
 
             with open(
-                os.path.join(self.corpus_folder, file), "r", encoding="iso-8859-1"
+                os.path.join(self.corpus_folder, file), "r", encoding="utf-8"
             ) as f:
                 extracted_terms = []
                 word1 = self.readlinePlus(f)
@@ -143,13 +143,13 @@ class DocumentProcessor:
     
     def load_json(self, json_file):
         try:
-            with open(json_file, "r", encoding="iso-8859-1") as f:
+            with open(json_file, "r", encoding="utf-8") as f:
                 return json.load(f)
         except (FileNotFoundError, json.JSONDecodeError):
             return {}
 
     def save_json(self, json_file, data):
-        with open(json_file, "w", encoding="iso-8859-1") as f:
+        with open(json_file, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=4)
 
     def run(self):

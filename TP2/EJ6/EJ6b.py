@@ -16,7 +16,7 @@ def detect_languages(input_file):
             language = "unknown"
         results[i] = language
 
-    with open("langdetect.txt", "w", encoding="utf-8") as txt_file:
+    with open("langdetect.txt", "w", encoding="iso-8859-1") as txt_file:
         for key, value in results.items():
             txt_file.write(f"{key} {value}\n")
 
