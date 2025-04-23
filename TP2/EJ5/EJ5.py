@@ -57,7 +57,7 @@ class TextProcessor:
                     docno = docno_match.group(1)
                     line = trec_file.readline().strip()
                 if line != "<\DOC>":
-                    tokens = self.clean_and_divid(line)
+                    tokens = self.clean_and_divide(line)
                     for token in tokens:
                         self.token_count += 1
                         print(f"Token: {token}")

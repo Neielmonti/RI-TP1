@@ -4,7 +4,7 @@ import pandas as pd
 import argparse
 import shutil
 from pathlib import Path
-from EJ4 import TextProcessor
+from tokenicer import TextProcessor
 
 parser = argparse.ArgumentParser(description="Indexador con PyTerrier.")
 parser.add_argument("input_dir", type=str, help="Directorio raíz con los archivos HTML")
