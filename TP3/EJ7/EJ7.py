@@ -45,28 +45,32 @@ def indexar_y_buscar(input_dir: str, queries_df) -> pd.DataFrame:
 
                 text = trec_file.readline().strip()
 
+
     directory_dfs(Path(input_dir))
     df = pd.DataFrame(docs)
 
+    # Crea el directorio con el indice
     index_dir = Path("indice").resolve()
     if index_dir.exists():
         shutil.rmtree(index_dir)
-
     indexer = pt.IterDictIndexer(str(index_dir), fields=["text"], meta=["docno"])
     indexref = indexer.index(df.to_dict(orient="records"))
-
     index = pt.IndexFactory.of(indexref)
+
+    # Creamos el modelo de recuperacion (retriever)
     tfidf = pt.terrier.Retriever(index, wmodel="TF_IDF")
 
+    # Y recuperamos los resultados de estas queries
     results = tfidf.transform(queries_df)
 
+    # Esto se hace por compatibilidad de datos.
     queries_df['qid'] = queries_df['qid'].astype(int)
     results['docno'] = results['docno'].astype(str)
 
+    # Agrego un campo de relevancia al ranking, para ver si el documento devuelto es realmente relevante
     results['relevant'] = results.apply(
         lambda row: 1 if str(row['docno']) in row['relevant_docs'] else 0, axis=1
     )
-
     return results[["qid", "docno", "score", "rank", "relevant"]]
 
 
@@ -84,6 +88,7 @@ def cargar_relevantes(path_txt):
 
     return dict(relevantes)
 
+
 # Función para parsear los títulos de las queries en el archivo TREC
 def parse_trec_titles(trec_file_path):
     with open(trec_file_path, 'r', encoding='utf-8') as f:
@@ -97,11 +102,12 @@ def parse_trec_titles(trec_file_path):
         title_match = re.search(r'<title>\s*(.*?)</title>', top, re.DOTALL)
 
         if num_match and title_match:
-            qid = int(num_match.group(1).strip())  # Convertimos a int para que coincida con los qid del txt
+            qid = int(num_match.group(1).strip())  # Convertimos a int para que coincida con los qid del txt ^.^
             title = title_match.group(1).strip().replace('\n', ' ')
             qid_to_query[qid] = title
 
     return qid_to_query
+
 
 # Construir la estructura final con la query y los documentos relevantes
 def construir_estructura(qid_to_docs, qid_to_query):
@@ -115,34 +121,42 @@ def construir_estructura(qid_to_docs, qid_to_query):
 
     return estructura
 
-# Cargar y construir la estructura con las rutas
-qid_path = Path(r"D:\Facultad\5to anio\Primer cuatrimestre\Recuperacion de la informacion\TPS\RI-TP1\TP2\EJ5\vaswani\qrels")
-trec_path = Path(r"D:\Facultad\5to anio\Primer cuatrimestre\Recuperacion de la informacion\TPS\RI-TP1\TP2\EJ5\vaswani\query-text.trec")
 
-qid_to_docs = cargar_relevantes(qid_path)
-qid_to_query = parse_trec_titles(trec_path)
-estructura_final = construir_estructura(qid_to_docs, qid_to_query)
+if __name__ == "__main__":
+    # Argumento único: directorio base
+    parser = argparse.ArgumentParser(description="Indexador con PyTerrier.")
+    parser.add_argument("base_dir", type=str, help="(directorio vaswani) directorio raíz que contiene qrels, query-text.trec y corpus/doc-text.trec")
+    args = parser.parse_args()
 
-# Crear el DataFrame de queries con su lista de documentos relevantes
-queries_df = pd.DataFrame([
-    {"qid": qid, "query": info["query"], "relevant_docs": info["relevant_docs"], "cant_RD": len(info["relevant_docs"])}
-    for qid, info in estructura_final.items()
-])
+    base_path = Path(args.base_dir).resolve()
 
-# Tomamos los primeros 11 elementos para probar
-primeros_11 = queries_df.head(11)
-print(primeros_11)
+    qid_path = base_path / "qrels"
+    trec_path = base_path / "query-text.trec"
+    corpus_path = base_path / "corpus" / "doc-text.trec"
 
+    # Al listado de queries, le agregamos una lista de documentos relevantes para cada una
+    # Primero cargamos los documentos relevantes por cada qID
+    # Luego, cargamos el cuerpo de la query para cada qID
+    qid_to_docs = cargar_relevantes(qid_path)
+    qid_to_query = parse_trec_titles(trec_path)
+    estructura_final = construir_estructura(qid_to_docs, qid_to_query)
 
-# Resto del código para indexar y buscar
-parser = argparse.ArgumentParser(description="Indexador con PyTerrier.")
-parser.add_argument("input_dir", type=str, help="Directorio raíz con los archivos HTML")
-args = parser.parse_args()
+    # Creamos un dataframe de queries con la lista de documentos relevantes
+    queries_df = pd.DataFrame([
+        {"qid": qid, "query": info["query"], "relevant_docs": info["relevant_docs"], "cant_RD": len(info["relevant_docs"])}
+        for qid, info in estructura_final.items()
+    ])
 
-# Realizar la búsqueda e incluir el campo 'relevant' basado en los documentos relevantes en el DataFrame
-results = indexar_y_buscar(args.input_dir, primeros_11)
+    # Tomamos las primeras 11 queries, para probar el modelo
+    primeros_11 = queries_df.head(11)
+    with pd.option_context('display.max_colwidth', None):
+        print(primeros_11[['qid', 'query', 'cant_RD']])
 
-# Mostrar los resultados
-for qid, group in results.groupby("qid"):
-    print(f"\nResultados para la query {qid}:")
-    print(group[["docno", "score", "rank", "relevant"]].head(11).to_string(index=False))
+    # Ahora, realizamos la búsqueda (que en realidad crea el index, hace las consultas, 
+    # y le agrega al ranking el campo de relevancia).
+    results = indexar_y_buscar(str(corpus_path), primeros_11)
+
+    # Por ultimo, mostramos los resultados
+    for qid, group in results.groupby("qid"):
+        print(f"\nResultados para la query {qid}:")
+        print(group[["docno", "score", "rank", "relevant"]].head(11).to_string(index=False))
