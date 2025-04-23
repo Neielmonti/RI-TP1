@@ -88,6 +88,7 @@ def comparar_modelos(index, queries: list[str]):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Indexa y compara modelos TF-IDF y BM25 con PyTerrier")
     parser.add_argument("input_dir", type=str, help="Ruta al directorio wiki-small")
+    parser.add_argument("compare_models", type=str, help="Indica si se quiere comparar modelos o no (values: [y,n])")
     args = parser.parse_args()
 
     if not pt.java.started():
@@ -106,7 +107,15 @@ if __name__ == "__main__":
         "estructura del sistema solar"
     ]
 
-    correlaciones_df = comparar_modelos(index, queries)
-    print(correlaciones_df)
+    if (args.compare_models == "y"):
+        correlaciones_df = comparar_modelos(index, queries)
+        print(correlaciones_df)
+    elif (args.compare_models == "n"):
+        tfidf = pt.BatchRetrieve(index, wmodel="TF_IDF")
+        for query in queries:
+            tfidf_results = tfidf.search(query).reset_index(drop=True)
+            print(tfidf_results.head(11))
+    else:
+        print("valor invalido en compare_models")
 
 

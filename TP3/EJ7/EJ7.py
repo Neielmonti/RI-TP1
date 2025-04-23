@@ -124,46 +124,42 @@ def construir_estructura(qid_to_docs, qid_to_query):
     return estructura
 
 
-def analizar_resultados(results_df):
-    print("\n\nAnálisis de resultados")
+def analizar_resultados(results_df: pd.DataFrame, qrels_df: pd.DataFrame) -> None:
 
-    # Evaluador de métricas
-    evaluator = pt.Utils.evaluate
-
-    # Diccionario con las métricas a evaluar
     metricas = {
         "P@10": "P.10",
         "AP": "AP",
         "NDCG@10": "nDCG@10"
     }
 
-    # Evaluación global (promedio)
     print("\n--- Métricas globales ---")
-    global_scores = evaluator(results_df, metrics=list(metricas.values()))
-    for nombre, codigo in metricas.items():
-        print(f"{nombre}: {global_scores[codigo]:.4f}")
+    evaluator = pt.Evaluate(qrels=qrels_df, metrics=list(metricas.values()))
+    global_scores = evaluator(results_df)
 
-    # Evaluación individual por query
+    for nombre, metrica in zip(metricas.keys(), metricas.values()):
+        print(f"{nombre}: {global_scores[metrica]:.4f}")
+
     print("\n--- Métricas individuales por query ---")
-    individual_scores = evaluator(results_df, metrics=list(metricas.values()), perquery=True)
-    print(individual_scores)
+    evaluator_por_query = pt.Evaluate(qrels=qrels_df, metrics=list(metricas.values()), perquery=True)
+    per_query_scores = evaluator_por_query(results_df)
 
-    # Gráfica de Precisión-Recall en 11 puntos
-    print("\n--- Curva Precisión-Recall (11 puntos estándar) ---")
-    pr_scores = evaluator(results_df, metrics=["Rprec", "recall_11pt"], perquery=True)
+    for qid, fila in per_query_scores.iterrows():
+        print(f"\nQuery {qid}:")
+        for nombre, metrica in zip(metricas.keys(), metricas.values()):
+            print(f"{nombre}: {fila[metrica]:.4f}")
 
-    # Promediamos los 11 puntos para la curva PR
-    mean_recalls = [sum(x) / len(x) for x in zip(*pr_scores["recall_11pt"])]
-    recall_levels = [round(i / 10, 1) for i in range(11)]
+    # Graficar curva R-P en 11 puntos estándar
+    print("\n--- Curva Precisión vs Recall (11 puntos) ---")
+    recall_levels = [i / 10 for i in range(11)]
+    pr_df = pt.measures.PrecisionRecall.evaluate(results_df, qrels_df, recall_levels=recall_levels)
 
-    plt.figure(figsize=(8, 5))
-    plt.plot(recall_levels, mean_recalls, marker='o', linestyle='-', color='blue')
-    plt.title('Curva Precisión-Recall (11 puntos estándar)')
-    plt.xlabel('Recall')
-    plt.ylabel('Precision')
+    plt.figure(figsize=(8, 6))
+    plt.plot(pr_df['recall'], pr_df['precision'], marker='o')
+    plt.title("Curva de Precisión-Recall (11 puntos)")
+    plt.xlabel("Recall")
+    plt.ylabel("Precisión")
     plt.grid(True)
-    plt.xticks(recall_levels)
-    plt.ylim(0, 1.05)
+    plt.tight_layout()
     plt.show()
 
 
@@ -206,4 +202,9 @@ if __name__ == "__main__":
         print(f"\nResultados para la query {qid}:")
         print(group[["docno", "score", "rank", "relevant"]].head(11).to_string(index=False))
 
-    analizar_resultados(results)
+    qrels_df = pd.DataFrame([
+        {"qid": qid, "docno": str(docno), "label": 1}
+        for qid, info in estructura_final.items()
+        for docno in info["relevant_docs"]
+    ])
+    analizar_resultados(results, qrels_df)
