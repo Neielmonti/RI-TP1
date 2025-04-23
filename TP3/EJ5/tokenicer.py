@@ -1,96 +1,69 @@
-import os
-import json
 import re
 import platform
 import heapq
-import subprocess
 import tempfile
+import subprocess
 from collections import defaultdict
-import orjson  # Reemplazamos json por orjson para mejor rendimiento
 import nltk
 from nltk.corpus import stopwords
 
-
-
 class TextProcessor:
     def __init__(self):
-        self.json_file = "palabras.json"
-        self.sorting_file = "ordenado.txt"
         self.token_count = 0
         self.doc_count = 0
         self.json_data = defaultdict(lambda: {"palabra": "", "df": 0, "apariciones": {}})
         self.statistics = {"N": 0, "num_terms": 0, "num_tokens": 0}
 
-        nltk.download("stopwords")  # solo la primera vez
+        nltk.download("stopwords", quiet=True)
         self.stopwords = set(stopwords.words("spanish"))
 
     def process_text(self, text: str, docID: str):
-        self.sort_words(text, self.sorting_file)
+        sorted_words = self.sort_words(text)
         doc_terms = set()
 
-        with open(self.sorting_file, "r", encoding="utf-8") as f:
-            word1 = self.readlinePlus(f)
-            while word1:
-                term_count = 1
-                word2 = self.readlinePlus(f)
-
-                while word1 == word2 and word1:
-                    term_count += 1
-                    word2 = self.readlinePlus(f)
-
-                if word1 not in self.stopwords:
-                    self.update_json_in_memory(word1, docID, term_count, doc_terms)
-                word1 = word2
+        i = 0
+        while i < len(sorted_words):
+            word = sorted_words[i]
+            term_count = 1
+            while i + 1 < len(sorted_words) and sorted_words[i + 1] == word:
+                term_count += 1
+                i += 1
+            if word not in self.stopwords:
+                self.update_json_in_memory(word, docID, term_count, doc_terms)
+            i += 1
 
         self.doc_count += 1
 
-    def saveData(self) -> None:
-        # Guardamos la información usando orjson para mayor velocidad
-        self.save_json()
-        self.save_json_statistics()
+    def sort_words(self, text):
+        if platform.system() == "Windows":
+            return self.sort_words_windows(text)
+        else:
+            return self.sort_words_unix(text)
 
-    def readlinePlus(self, file) -> str:
-        aux = file.readline().strip()
-        if aux != "":
-            self.token_count += 1
-        return aux
-
-    def sort_words(self, text, output_file):
-            if platform.system() == "Windows":
-                self.sort_words_windows(text, output_file)
-            else:
-                self.sort_words_unix(text, output_file)
-    """
-    def sort_words_unix(self, text, output_file):
-        words = re.sub(r'[^a-z\s]', ' ', text.lower()).split()
-        words.sort()
-        with open(output_file, "w", encoding="utf-8") as f:
-            for word in words:
-                f.write(f"{word}\n")
-    """
-    def sort_words_unix(self, text, output_file):
-        # Escribimos el string temporalmente para poder usar comandos Unix sobre él
+    def sort_words_unix(self, text):
         with tempfile.NamedTemporaryFile(mode="w+", delete=False, encoding="utf-8") as tmp:
             tmp.write(text)
-            tmp.flush()  # Aseguramos que se guarde antes de leer
-
+            tmp.flush()
             command = (
                 f"cat {tmp.name} | tr '[:upper:]' '[:lower:]' | tr -s '[:space:]' '\n' "
-                f"| sed 's/[^a-z]/ /g' | tr -s ' ' '\n' | sed '/^$/d' | sort > {output_file}"
+                f"| sed 's/[^a-záéíóúñü]/ /g' | tr -s ' ' '\n' | sed '/^$/d' | sort"
             )
-            subprocess.run(command, shell=True, check=True)
-    def sort_words_windows(self, text, output_file):
-        heap = []
+            result = subprocess.run(command, shell=True, capture_output=True, text=True)
+            words = result.stdout.strip().split('\n')
+            self.token_count += len(words)
+            return words
 
-        # Procesar directamente el texto
+    def sort_words_windows(self, text):
+        heap = []
         for line in text.splitlines():
-            line = re.sub(r'[^a-z\s]', ' ', line.lower())
+            line = re.sub(r'[^a-záéíóúñü\s]', ' ', line.lower())
             for word in line.split():
                 heapq.heappush(heap, word)
-
-        with open(output_file, 'w', encoding='utf-8') as output:
-            while heap:
-                output.write(heapq.heappop(heap) + '\n')
+        words = []
+        while heap:
+            words.append(heapq.heappop(heap))
+        self.token_count += len(words)
+        return words
 
     def update_json_in_memory(self, term, docID, freq, doc_terms):
         term_data = self.json_data[term]
@@ -100,27 +73,7 @@ class TextProcessor:
             term_data["df"] += 1
             doc_terms.add(term)
 
-    def save_json_statistics(self):
-        # Esta funcion calcula las estadisticas (o mejor dicho las guarda)
-        # en el JSON, a partir de atributos del objeto, (a excepcion del
-        # term_count, ya que este lo extrae del len del JSON)
+    def finalizar(self):
         self.statistics["N"] = self.doc_count
         self.statistics["num_terms"] = len(self.json_data)
         self.statistics["num_tokens"] = self.token_count
-
-        self.save_json()
-
-    def load_json(self):
-        try:
-            with open(self.json_file, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except (FileNotFoundError, json.JSONDecodeError):
-            return {}
-
-    def save_json(self):
-        # Guardamos los datos en formato JSON usando orjson para mejor rendimiento
-        with open(self.json_file, "wb") as f:
-            f.write(orjson.dumps({
-                "data": dict(self.json_data),
-                "statistics": self.statistics
-            }))

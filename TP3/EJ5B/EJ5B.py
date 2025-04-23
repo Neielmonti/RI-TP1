@@ -80,5 +80,4 @@ query = "Isaac Newtone"
 
 resultados = indexar_y_buscar(input_dir, query)
 
-print("-----------------RANKING DE PYTERRIER-------------------")
 print(resultados.head())
