@@ -5,6 +5,8 @@ import shutil
 import re
 import argparse
 from collections import defaultdict
+import matplotlib.pyplot as plt
+import pyterrier.measures as pt_measures
 
 def indexar_y_buscar(input_dir: str, queries_df) -> pd.DataFrame:
     if not pt.java.started():
@@ -122,6 +124,49 @@ def construir_estructura(qid_to_docs, qid_to_query):
     return estructura
 
 
+def analizar_resultados(results_df):
+    print("\n\nAnálisis de resultados")
+
+    # Evaluador de métricas
+    evaluator = pt.Utils.evaluate
+
+    # Diccionario con las métricas a evaluar
+    metricas = {
+        "P@10": "P.10",
+        "AP": "AP",
+        "NDCG@10": "nDCG@10"
+    }
+
+    # Evaluación global (promedio)
+    print("\n--- Métricas globales ---")
+    global_scores = evaluator(results_df, metrics=list(metricas.values()))
+    for nombre, codigo in metricas.items():
+        print(f"{nombre}: {global_scores[codigo]:.4f}")
+
+    # Evaluación individual por query
+    print("\n--- Métricas individuales por query ---")
+    individual_scores = evaluator(results_df, metrics=list(metricas.values()), perquery=True)
+    print(individual_scores)
+
+    # Gráfica de Precisión-Recall en 11 puntos
+    print("\n--- Curva Precisión-Recall (11 puntos estándar) ---")
+    pr_scores = evaluator(results_df, metrics=["Rprec", "recall_11pt"], perquery=True)
+
+    # Promediamos los 11 puntos para la curva PR
+    mean_recalls = [sum(x) / len(x) for x in zip(*pr_scores["recall_11pt"])]
+    recall_levels = [round(i / 10, 1) for i in range(11)]
+
+    plt.figure(figsize=(8, 5))
+    plt.plot(recall_levels, mean_recalls, marker='o', linestyle='-', color='blue')
+    plt.title('Curva Precisión-Recall (11 puntos estándar)')
+    plt.xlabel('Recall')
+    plt.ylabel('Precision')
+    plt.grid(True)
+    plt.xticks(recall_levels)
+    plt.ylim(0, 1.05)
+    plt.show()
+
+
 if __name__ == "__main__":
     # Argumento único: directorio base
     parser = argparse.ArgumentParser(description="Indexador con PyTerrier.")
@@ -160,3 +205,5 @@ if __name__ == "__main__":
     for qid, group in results.groupby("qid"):
         print(f"\nResultados para la query {qid}:")
         print(group[["docno", "score", "rank", "relevant"]].head(11).to_string(index=False))
+
+    analizar_resultados(results)
