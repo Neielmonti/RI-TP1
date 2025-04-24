@@ -7,6 +7,9 @@ import argparse
 from collections import defaultdict
 import matplotlib.pyplot as plt
 import pyterrier.measures as pt_measures
+from pyterrier.terrier import Retriever
+import numpy as np
+
 
 def indexar_y_buscar(input_dir: str, queries_df) -> pd.DataFrame:
     if not pt.java.started():
@@ -47,39 +50,33 @@ def indexar_y_buscar(input_dir: str, queries_df) -> pd.DataFrame:
 
                 text = trec_file.readline().strip()
 
-
     directory_dfs(Path(input_dir))
     df = pd.DataFrame(docs)
 
-    # Crea el directorio con el indice
     index_dir = Path("indice").resolve()
     if index_dir.exists():
         shutil.rmtree(index_dir)
+
     indexer = pt.IterDictIndexer(str(index_dir), fields=["text"], meta=["docno"])
     indexref = indexer.index(df.to_dict(orient="records"))
-    index = pt.IndexFactory.of(indexref)
 
-    # Creamos el modelo de recuperacion (retriever)
+    index = pt.IndexFactory.of(indexref)
     tfidf = pt.terrier.Retriever(index, wmodel="TF_IDF")
 
-    # Y recuperamos los resultados de estas queries
     results = tfidf.transform(queries_df)
 
-    # Esto se hace por compatibilidad de datos.
     queries_df['qid'] = queries_df['qid'].astype(int)
     results['docno'] = results['docno'].astype(str)
 
-    # Agrego un campo de relevancia al ranking, para ver si el documento devuelto es realmente relevante
     results['relevant'] = results.apply(
         lambda row: 1 if str(row['docno']) in row['relevant_docs'] else 0, axis=1
     )
+
     return results[["qid", "docno", "score", "rank", "relevant"]]
 
 
-# Función de carga de los documentos relevantes
 def cargar_relevantes(path_txt):
     relevantes = defaultdict(list)
-
     with open(path_txt, "r", encoding="utf-8") as f:
         for linea in f:
             partes = linea.strip().split()
@@ -87,84 +84,128 @@ def cargar_relevantes(path_txt):
                 query_id = int(partes[0])
                 doc_id = partes[2]
                 relevantes[query_id].append(doc_id)
-
     return dict(relevantes)
 
 
-# Función para parsear los títulos de las queries en el archivo TREC
 def parse_trec_titles(trec_file_path):
     with open(trec_file_path, 'r', encoding='utf-8') as f:
         content = f.read()
-
     tops = re.findall(r'<top>(.*?)</top>', content, re.DOTALL)
     qid_to_query = {}
-
     for top in tops:
         num_match = re.search(r'<num>\s*(\d+)\s*</num>', top)
         title_match = re.search(r'<title>\s*(.*?)</title>', top, re.DOTALL)
-
         if num_match and title_match:
-            qid = int(num_match.group(1).strip())  # Convertimos a int para que coincida con los qid del txt ^.^
+            qid = int(num_match.group(1).strip())
             title = title_match.group(1).strip().replace('\n', ' ')
             qid_to_query[qid] = title
-
     return qid_to_query
 
 
-# Construir la estructura final con la query y los documentos relevantes
 def construir_estructura(qid_to_docs, qid_to_query):
     estructura = {}
-
     for qid in qid_to_docs:
         estructura[qid] = {
-            'query': qid_to_query.get(qid, ''),  # Query asociada
-            'relevant_docs': qid_to_docs[qid]  # Documentos relevantes para esa query
+            'query': qid_to_query.get(qid, ''),
+            'relevant_docs': qid_to_docs[qid]
         }
-
     return estructura
 
 
-def analizar_resultados(results_df: pd.DataFrame, qrels_df: pd.DataFrame) -> None:
+def precision_at_k(results, k):
+    return results.head(k)['relevant'].sum() / k
 
-    metricas = {
-        "P@10": "P.10",
-        "AP": "AP",
-        "NDCG@10": "nDCG@10"
-    }
 
-    print("\n--- Métricas globales ---")
-    evaluator = pt.Evaluate(qrels=qrels_df, metrics=list(metricas.values()))
-    global_scores = evaluator(results_df)
+def average_precision(results):
+    relevant_docs = 0
+    ap = 0
+    for rank, row in results.iterrows():
+        if row['relevant'] == 1:
+            relevant_docs += 1
+            ap += relevant_docs / (rank + 1)
+    return ap / relevant_docs if relevant_docs > 0 else 0
 
-    for nombre, metrica in zip(metricas.keys(), metricas.values()):
-        print(f"{nombre}: {global_scores[metrica]:.4f}")
 
-    print("\n--- Métricas individuales por query ---")
-    evaluator_por_query = pt.Evaluate(qrels=qrels_df, metrics=list(metricas.values()), perquery=True)
-    per_query_scores = evaluator_por_query(results_df)
+def ndcg_at_k(results, k):
+    dcg = 0
+    idcg = 0
+    for rank, row in results.head(k).iterrows():
+        if row['relevant'] == 1:
+            dcg += 1 / np.log2(rank + 2)
+        idcg += 1 / np.log2(rank + 2)
+    return dcg / idcg if idcg > 0 else 0
 
-    for qid, fila in per_query_scores.iterrows():
-        print(f"\nQuery {qid}:")
-        for nombre, metrica in zip(metricas.keys(), metricas.values()):
-            print(f"{nombre}: {fila[metrica]:.4f}")
 
-    # Graficar curva R-P en 11 puntos estándar
-    print("\n--- Curva Precisión vs Recall (11 puntos) ---")
-    recall_levels = [i / 10 for i in range(11)]
-    pr_df = pt.measures.PrecisionRecall.evaluate(results_df, qrels_df, recall_levels=recall_levels)
+def plot_precision_recall_interpolado(results):
+    # Agrupamos por query y acumulamos los resultados
+    qids = results['qid'].unique()
+    all_precisions = {r: [] for r in np.linspace(0.0, 1.0, 11)}
 
+    for qid in qids:
+        query_results = results[results['qid'] == qid].sort_values(by="rank")
+        total_relevant = query_results['relevant'].sum()
+        if total_relevant == 0:
+            continue
+
+        precisiones = []
+        recalls = []
+        relevant_retrieved = 0
+
+        for i, (_, row) in enumerate(query_results.iterrows(), start=1):
+            if row['relevant'] == 1:
+                relevant_retrieved += 1
+            prec = relevant_retrieved / i
+            rec = relevant_retrieved / total_relevant
+            precisiones.append(prec)
+            recalls.append(rec)
+
+        # Interpolación: para cada punto de recall estándar, tomamos la mayor precisión alcanzada
+        for recall_level in all_precisions:
+            precisiones_a_incluir = [p for p, r in zip(precisiones, recalls) if r >= recall_level]
+            max_prec = max(precisiones_a_incluir) if precisiones_a_incluir else 0
+            all_precisions[recall_level].append(max_prec)
+
+    # Calculamos el promedio por cada nivel de recall
+    avg_precisions = [np.mean(all_precisions[r]) for r in sorted(all_precisions)]
+
+    # Graficamos
     plt.figure(figsize=(8, 6))
-    plt.plot(pr_df['recall'], pr_df['precision'], marker='o')
-    plt.title("Curva de Precisión-Recall (11 puntos)")
-    plt.xlabel("Recall")
-    plt.ylabel("Precisión")
+    plt.plot(np.linspace(0.0, 1.0, 11), avg_precisions, marker='o')
+    plt.xlabel('Recall')
+    plt.ylabel('Precisión interpolada')
+    plt.title('Curva de Precisión Interpolada (11 puntos estándar)')
     plt.grid(True)
-    plt.tight_layout()
+    plt.ylim(0, 1.05)
     plt.show()
 
 
+def calcular_metricas(results):
+    global_metrics = {
+        'P@10': precision_at_k(results, 10),
+        'AP': average_precision(results),
+        'NDCG@10': ndcg_at_k(results, 10)
+    }
+    return global_metrics
+
+
+def analizar_metrica_por_query(results):
+    individual_metrics = {}
+    for qid, group in results.groupby('qid'):
+        individual_metrics[qid] = {
+            'P@10': precision_at_k(group, 10),
+            'AP': average_precision(group),
+            'NDCG@10': ndcg_at_k(group, 10)
+        }
+    return individual_metrics
+
+def mostrar_metricas_en_tabla(resultados_por_query):
+    df = pd.DataFrame.from_dict(resultados_por_query, orient='index')
+    df.index.name = "Query"
+    df = df[["P@10", "AP", "NDCG@10"]]  # Asegura el orden de las columnas
+    print("\nMétricas por query (formato tabular):\n")
+    print(df.round(4))  # Podés ajustar los decimales si querés
+
 if __name__ == "__main__":
-    # Argumento único: directorio base
     parser = argparse.ArgumentParser(description="Indexador con PyTerrier.")
     parser.add_argument("base_dir", type=str, help="(directorio vaswani) directorio raíz que contiene qrels, query-text.trec y corpus/doc-text.trec")
     args = parser.parse_args()
@@ -176,8 +217,6 @@ if __name__ == "__main__":
     corpus_path = base_path / "corpus" / "doc-text.trec"
 
     # Al listado de queries, le agregamos una lista de documentos relevantes para cada una
-    # Primero cargamos los documentos relevantes por cada qID
-    # Luego, cargamos el cuerpo de la query para cada qID
     qid_to_docs = cargar_relevantes(qid_path)
     qid_to_query = parse_trec_titles(trec_path)
     estructura_final = construir_estructura(qid_to_docs, qid_to_query)
@@ -190,21 +229,19 @@ if __name__ == "__main__":
 
     # Tomamos las primeras 11 queries, para probar el modelo
     primeros_11 = queries_df.head(11)
-    with pd.option_context('display.max_colwidth', None):
-        print(primeros_11[['qid', 'query', 'cant_RD']])
 
-    # Ahora, realizamos la búsqueda (que en realidad crea el index, hace las consultas, 
-    # y le agrega al ranking el campo de relevancia).
+    # Realizamos la búsqueda
     results = indexar_y_buscar(str(corpus_path), primeros_11)
 
-    # Por ultimo, mostramos los resultados
-    for qid, group in results.groupby("qid"):
-        print(f"\nResultados para la query {qid}:")
-        print(group[["docno", "score", "rank", "relevant"]].head(11).to_string(index=False))
+    # Análisis global
+    global_metrics = calcular_metricas(results)
+    print("Métricas Globales:")
+    for metric, value in global_metrics.items():
+        print(f"{metric}: {value}")
 
-    qrels_df = pd.DataFrame([
-        {"qid": qid, "docno": str(docno), "label": 1}
-        for qid, info in estructura_final.items()
-        for docno in info["relevant_docs"]
-    ])
-    analizar_resultados(results, qrels_df)
+    # Análisis individual por query
+    individual_metrics = analizar_metrica_por_query(results)
+    mostrar_metricas_en_tabla(individual_metrics)
+
+    # Graficamos Precisión-Recall
+    plot_precision_recall_interpolado(results)

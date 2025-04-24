@@ -7,15 +7,18 @@ import argparse
 import shutil
 from scipy.stats import kendalltau, spearmanr
 
+
 def limpiar_html(input_dir: Path) -> pd.DataFrame:
+    # Como pyterrier usa dataframes, esta funcion se dedica a pasar el corpus a un dataframe
     docs = []
     file_index = 0
 
-    print("Leyendo y limpiando documentos...")
+    print("Leyendo documentos del corpus")
 
+    # Funcion recursiva para recorrer todos los directorios de este particular corpus
     def directory_dfs(path: Path) -> None:
         nonlocal file_index
-        for x in path.iterdir():
+        for x in input_dir.iterdir():
             if x.is_dir():
                 directory_dfs(x)
             else:
@@ -38,10 +41,12 @@ def limpiar_html(input_dir: Path) -> pd.DataFrame:
                     print(f"  > Documentos procesados: {file_index}")
 
     directory_dfs(input_dir)
-    print(f"Total de documentos procesados: {file_index}")
     return pd.DataFrame(docs)
 
+
 def indexar_documentos(df: pd.DataFrame):
+    # Esta funcion simplemente crea el indice a partir del DF del corpus
+
     index_dir = Path("indice").resolve()
     if index_dir.exists():
         shutil.rmtree(index_dir)
@@ -50,13 +55,17 @@ def indexar_documentos(df: pd.DataFrame):
     indexref = indexer.index(df.to_dict(orient="records"))
     return pt.IndexFactory.of(indexref)
 
-def comparar_modelos(index, queries: list[str]):
+
+def comparar_modelos(index, queries: list[str]) -> None:
+    # Esta funcion crea 2 retrievers, y por cada query, hace un analisis de correlacion (Spearman y Kendall)
+    # Esto lo hace para rankings de 10, 25 y 50 elementos
+
     tfidf = pt.BatchRetrieve(index, wmodel="TF_IDF")
     bm25 = pt.BatchRetrieve(index, wmodel="BM25")
 
     correlaciones = []
 
-    print("Comparando modelos para cada query...")
+    print("Comparando modelos para cada query")
     
     for i, query in enumerate(queries):
         print(f"  > Procesando query {i + 1}/{len(queries)}: {query}")
@@ -68,9 +77,9 @@ def comparar_modelos(index, queries: list[str]):
         for k in [10, 25, 50]:
             top_k = merged.head(k)
             if len(top_k) < k:
-                continue  # saltar si no hay suficientes documentos
+                # Saltar si no hay suficientes documentos en el ranking
+                continue
 
-            # Rankings: cuanto más arriba en la lista, menor es el valor de "rank"
             ranks_tfidf = top_k["rank_tfidf"]
             ranks_bm25 = top_k["rank_bm25"]
 
@@ -98,7 +107,7 @@ if __name__ == "__main__":
     df_docs = limpiar_html(input_path)
     index = indexar_documentos(df_docs)
 
-    # 5 consultas manuales derivadas de necesidades de información
+    # 5 queries manuales derivadas de necesidades de información
     queries = [
         "historia de la segunda guerra mundial",
         "procesos de fotosíntesis en plantas",
@@ -116,6 +125,6 @@ if __name__ == "__main__":
             tfidf_results = tfidf.search(query).reset_index(drop=True)
             print(tfidf_results.head(11))
     else:
-        print("valor invalido en compare_models")
+        print("[ERROR] valor invalido en compare_models")
 
 
