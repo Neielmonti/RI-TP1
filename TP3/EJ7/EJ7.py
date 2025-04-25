@@ -6,7 +6,6 @@ import re
 import argparse
 from collections import defaultdict
 import matplotlib.pyplot as plt
-import pyterrier.measures as pt_measures
 from pyterrier.terrier import Retriever
 import numpy as np
 
@@ -102,14 +101,34 @@ def parse_trec_titles(trec_file_path):
     return qid_to_query
 
 
-def construir_estructura(qid_to_docs, qid_to_query):
-    estructura = {}
-    for qid in qid_to_docs:
-        estructura[qid] = {
-            'query': qid_to_query.get(qid, ''),
-            'relevant_docs': qid_to_docs[qid]
-        }
-    return estructura
+def construir_df_de_queries(base_dir: Path) -> pd.DataFrame:
+    qrels_path = base_dir / "qrels"
+    trec_path = base_dir / "query-text.trec"
+
+    qid_to_docs = cargar_relevantes(qrels_path)
+    qid_to_query = parse_trec_titles(trec_path)
+
+    data = []
+    for qid in sorted(qid_to_docs):
+        data.append({
+            "qid": qid,
+            "query": qid_to_query.get(qid, ''),
+            "relevant_docs": qid_to_docs[qid],
+            "cant_RD": len(qid_to_docs[qid])
+        })
+
+    return pd.DataFrame(data)
+
+def construir_qrels_df(qrels_path: Path) -> pd.DataFrame:
+    data = []
+    with open(qrels_path, "r", encoding="utf-8") as f:
+        for line in f:
+            partes = line.strip().split()
+            if len(partes) >= 3:
+                qid = int(partes[0])
+                docno = str(partes[2])
+                data.append({"qid": qid, "docno": docno, "label": 1})
+    return pd.DataFrame(data)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Indexador con PyTerrier.")
@@ -117,29 +136,18 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     base_path = Path(args.base_dir).resolve()
-
-    qid_path = base_path / "qrels"
-    trec_path = base_path / "query-text.trec"
     corpus_path = base_path / "corpus" / "doc-text.trec"
 
-    # Al listado de queries, le agregamos una lista de documentos relevantes para cada una
-    qid_to_docs = cargar_relevantes(qid_path)
-    qid_to_query = parse_trec_titles(trec_path)
-    estructura_final = construir_estructura(qid_to_docs, qid_to_query)
+    # Crear el dataframe de queries con sus documentos relevantes
+    queries_df = construir_df_de_queries(base_path)
 
-    # Creamos un dataframe de queries con la lista de documentos relevantes
-    queries_df = pd.DataFrame([
-        {"qid": qid, "query": info["query"], "relevant_docs": info["relevant_docs"], "cant_RD": len(info["relevant_docs"])}
-        for qid, info in estructura_final.items()
-    ])
-
-    # Tomamos las primeras 11 queries, para probar el modelo
+    # Usar las primeras 11 queries como ejemplo
     primeros_11 = queries_df.head(11)
 
-    # Realizamos la búsqueda
+    # Ejecutar búsqueda con PyTerrier
     results = indexar_y_buscar(str(corpus_path), primeros_11)
- 
-    # Por ultimo, mostramos los resultados
+
+    # Mostrar resultados por query
     for qid, group in results.groupby("qid"):
         print(f"\nResultados para la query {qid}:")
         print(group[["docno", "score", "rank", "relevant"]].head(11).to_string(index=False))
