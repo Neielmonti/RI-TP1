@@ -111,100 +111,6 @@ def construir_estructura(qid_to_docs, qid_to_query):
         }
     return estructura
 
-
-def precision_at_k(results, k):
-    return results.head(k)['relevant'].sum() / k
-
-
-def average_precision(results):
-    relevant_docs = 0
-    ap = 0
-    for rank, row in results.iterrows():
-        if row['relevant'] == 1:
-            relevant_docs += 1
-            ap += relevant_docs / (rank + 1)
-    return ap / relevant_docs if relevant_docs > 0 else 0
-
-
-def ndcg_at_k(results, k):
-    dcg = 0
-    idcg = 0
-    for rank, row in results.head(k).iterrows():
-        if row['relevant'] == 1:
-            dcg += 1 / np.log2(rank + 2)
-        idcg += 1 / np.log2(rank + 2)
-    return dcg / idcg if idcg > 0 else 0
-
-
-def plot_precision_recall_interpolado(results):
-    # Agrupamos por query y acumulamos los resultados
-    qids = results['qid'].unique()
-    all_precisions = {r: [] for r in np.linspace(0.0, 1.0, 11)}
-
-    for qid in qids:
-        query_results = results[results['qid'] == qid].sort_values(by="rank")
-        total_relevant = query_results['relevant'].sum()
-        if total_relevant == 0:
-            continue
-
-        precisiones = []
-        recalls = []
-        relevant_retrieved = 0
-
-        for i, (_, row) in enumerate(query_results.iterrows(), start=1):
-            if row['relevant'] == 1:
-                relevant_retrieved += 1
-            prec = relevant_retrieved / i
-            rec = relevant_retrieved / total_relevant
-            precisiones.append(prec)
-            recalls.append(rec)
-
-        # Interpolación: para cada punto de recall estándar, tomamos la mayor precisión alcanzada
-        for recall_level in all_precisions:
-            precisiones_a_incluir = [p for p, r in zip(precisiones, recalls) if r >= recall_level]
-            max_prec = max(precisiones_a_incluir) if precisiones_a_incluir else 0
-            all_precisions[recall_level].append(max_prec)
-
-    # Calculamos el promedio por cada nivel de recall
-    avg_precisions = [np.mean(all_precisions[r]) for r in sorted(all_precisions)]
-
-    # Graficamos
-    plt.figure(figsize=(8, 6))
-    plt.plot(np.linspace(0.0, 1.0, 11), avg_precisions, marker='o')
-    plt.xlabel('Recall')
-    plt.ylabel('Precisión interpolada')
-    plt.title('Curva de Precisión Interpolada (11 puntos estándar)')
-    plt.grid(True)
-    plt.ylim(0, 1.05)
-    plt.show()
-
-
-def calcular_metricas(results):
-    global_metrics = {
-        'P@10': precision_at_k(results, 10),
-        'AP': average_precision(results),
-        'NDCG@10': ndcg_at_k(results, 10)
-    }
-    return global_metrics
-
-
-def analizar_metrica_por_query(results):
-    individual_metrics = {}
-    for qid, group in results.groupby('qid'):
-        individual_metrics[qid] = {
-            'P@10': precision_at_k(group, 10),
-            'AP': average_precision(group),
-            'NDCG@10': ndcg_at_k(group, 10)
-        }
-    return individual_metrics
-
-def mostrar_metricas_en_tabla(resultados_por_query):
-    df = pd.DataFrame.from_dict(resultados_por_query, orient='index')
-    df.index.name = "Query"
-    df = df[["P@10", "AP", "NDCG@10"]]  # Asegura el orden de las columnas
-    print("\nMétricas por query (formato tabular):\n")
-    print(df.round(4))  # Podés ajustar los decimales si querés
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Indexador con PyTerrier.")
     parser.add_argument("base_dir", type=str, help="(directorio vaswani) directorio raíz que contiene qrels, query-text.trec y corpus/doc-text.trec")
@@ -232,16 +138,8 @@ if __name__ == "__main__":
 
     # Realizamos la búsqueda
     results = indexar_y_buscar(str(corpus_path), primeros_11)
-
-    # Análisis global
-    global_metrics = calcular_metricas(results)
-    print("Métricas Globales:")
-    for metric, value in global_metrics.items():
-        print(f"{metric}: {value}")
-
-    # Análisis individual por query
-    individual_metrics = analizar_metrica_por_query(results)
-    mostrar_metricas_en_tabla(individual_metrics)
-
-    # Graficamos Precisión-Recall
-    plot_precision_recall_interpolado(results)
+ 
+    # Por ultimo, mostramos los resultados
+    for qid, group in results.groupby("qid"):
+        print(f"\nResultados para la query {qid}:")
+        print(group[["docno", "score", "rank", "relevant"]].head(11).to_string(index=False))
