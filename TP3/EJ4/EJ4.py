@@ -9,19 +9,23 @@ from scipy.stats import kendalltau, spearmanr
 
 
 def limpiar_html(input_dir: Path) -> pd.DataFrame:
-    # Como pyterrier usa dataframes, esta funcion se dedica a pasar el corpus a un dataframe
     docs = []
     file_index = 0
 
     print("Leyendo documentos del corpus")
 
-    # Funcion recursiva para recorrer todos los directorios de este particular corpus
+    # Funcion recursiva para recorrer todos
+    # los directorios de este particular corpus
     def directory_dfs(path: Path) -> None:
+
         nonlocal file_index
-        for x in input_dir.iterdir():
+
+        for x in path.iterdir():
             if x.is_dir():
+                # Llamada recursiva con el subdirectorio
                 directory_dfs(x)
             else:
+                # Procesar archivo HTML
                 with open(x, "r", encoding="utf-8") as f:
                     html = f.read()
                 soup = BeautifulSoup(html, features="html.parser")
@@ -29,7 +33,9 @@ def limpiar_html(input_dir: Path) -> pd.DataFrame:
                     script.extract()
                 text = soup.get_text()
                 lines = (line.strip() for line in text.splitlines())
-                chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
+                chunks = (phrase.strip()
+                          for line in lines
+                          for phrase in line.split("  "))
                 cleaned_text = '\n'.join(chunk for chunk in chunks if chunk)
                 docs.append({
                     "docno": x.name,
@@ -38,7 +44,7 @@ def limpiar_html(input_dir: Path) -> pd.DataFrame:
                 })
                 file_index += 1
                 if file_index % 100 == 0:
-                    print(f"  > Documentos procesados: {file_index}")
+                    print(f"Documentos procesados: {file_index}")
 
     directory_dfs(input_dir)
     return pd.DataFrame(docs)
@@ -51,28 +57,37 @@ def indexar_documentos(df: pd.DataFrame):
     if index_dir.exists():
         shutil.rmtree(index_dir)
 
-    indexer = pt.IterDictIndexer(str(index_dir), fields=["text"], meta=["docno", "docid"])
+    indexer = pt.IterDictIndexer(
+        str(index_dir),
+        fields=["text"],
+        meta=["docno", "docid"]
+        )
     indexref = indexer.index(df.to_dict(orient="records"))
     return pt.IndexFactory.of(indexref)
 
 
 def comparar_modelos(index, queries: list[str]) -> None:
-    # Esta funcion crea 2 retrievers, y por cada query, hace un analisis de correlacion (Spearman y Kendall)
+    # Esta funcion crea 2 retrievers, y por cada query, hace
+    # un analisis de correlacion (Spearman y Kendall)
     # Esto lo hace para rankings de 10, 25 y 50 elementos
 
     tfidf = pt.BatchRetrieve(index, wmodel="TF_IDF")
     bm25 = pt.BatchRetrieve(index, wmodel="BM25")
-
     correlaciones = []
 
     print("Comparando modelos para cada query")
-    
+
     for i, query in enumerate(queries):
         print(f"  > Procesando query {i + 1}/{len(queries)}: {query}")
         tfidf_results = tfidf.search(query).reset_index(drop=True)
         bm25_results = bm25.search(query).reset_index(drop=True)
 
-        merged = pd.merge(tfidf_results, bm25_results, on="docno", suffixes=("_tfidf", "_bm25"))
+        merged = pd.merge(
+            tfidf_results,
+            bm25_results,
+            on="docno",
+            suffixes=("_tfidf", "_bm25")
+            )
 
         for k in [10, 25, 50]:
             top_k = merged.head(k)
@@ -94,10 +109,21 @@ def comparar_modelos(index, queries: list[str]) -> None:
 
     return pd.DataFrame(correlaciones)
 
+
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Indexa y compara modelos TF-IDF y BM25 con PyTerrier")
-    parser.add_argument("input_dir", type=str, help="Ruta al directorio wiki-small")
-    parser.add_argument("compare_models", type=str, help="Indica si se quiere comparar modelos o no (values: [y,n])")
+    parser = argparse.ArgumentParser(
+        description="Indexa y compara modelos TF-IDF y BM25 con PyTerrier"
+        )
+    parser.add_argument(
+        "input_dir",
+        type=str,
+        help="Ruta al directorio wiki-small"
+        )
+    parser.add_argument(
+        "compare_models",
+        type=str,
+        help="Indica si se quiere comparar modelos o no (values: [y,n])"
+        )
     args = parser.parse_args()
 
     if not pt.java.started():
@@ -126,5 +152,3 @@ if __name__ == "__main__":
             print(tfidf_results.head(11))
     else:
         print("[ERROR] valor invalido en compare_models")
-
-

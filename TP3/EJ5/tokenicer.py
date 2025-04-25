@@ -7,11 +7,14 @@ from collections import defaultdict
 import nltk
 from nltk.corpus import stopwords
 
+
 class TextProcessor:
     def __init__(self):
         self.token_count = 0
         self.doc_count = 0
-        self.json_data = defaultdict(lambda: {"palabra": "", "df": 0, "apariciones": {}})
+        self.json_data = defaultdict(
+            lambda: {"palabra": "", "df": 0, "apariciones": {}}
+            )
         self.statistics = {"N": 0, "num_terms": 0, "num_tokens": 0}
 
         nltk.download("stopwords", quiet=True)
@@ -41,14 +44,22 @@ class TextProcessor:
             return self.sort_words_unix(text)
 
     def sort_words_unix(self, text):
-        with tempfile.NamedTemporaryFile(mode="w+", delete=False, encoding="utf-8") as tmp:
+        with tempfile.NamedTemporaryFile(
+            mode="w+",
+            delete=False,
+            encoding="utf-8"
+        ) as tmp:
             tmp.write(text)
             tmp.flush()
             command = (
                 f"cat {tmp.name} | tr '[:upper:]' '[:lower:]' | tr -s '[:space:]' '\n' "
                 f"| sed 's/[^a-záéíóúñü]/ /g' | tr -s ' ' '\n' | sed '/^$/d' | sort"
             )
-            result = subprocess.run(command, shell=True, capture_output=True, text=True)
+            result = subprocess.run(
+                command,
+                shell=True,
+                capture_output=True,
+                text=True)
             words = result.stdout.strip().split('\n')
             self.token_count += len(words)
             return words

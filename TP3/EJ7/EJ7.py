@@ -5,9 +5,6 @@ import shutil
 import re
 import argparse
 from collections import defaultdict
-import matplotlib.pyplot as plt
-from pyterrier.terrier import Retriever
-import numpy as np
 
 
 def indexar_y_buscar(input_dir: str, queries_df) -> pd.DataFrame:
@@ -38,8 +35,14 @@ def indexar_y_buscar(input_dir: str, queries_df) -> pd.DataFrame:
 
                     if docno and content_lines:
                         lines = (line.strip() for line in content_lines)
-                        chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
-                        cleaned_text = '\n'.join(chunk for chunk in chunks if chunk)
+                        chunks = (
+                            phrase.strip()
+                            for line in lines
+                            for phrase in line.split("  ")
+                            )
+                        cleaned_text = '\n'.join(
+                            chunk for chunk in chunks if chunk
+                            )
 
                         if cleaned_text.strip():
                             docs.append({
@@ -56,7 +59,11 @@ def indexar_y_buscar(input_dir: str, queries_df) -> pd.DataFrame:
     if index_dir.exists():
         shutil.rmtree(index_dir)
 
-    indexer = pt.IterDictIndexer(str(index_dir), fields=["text"], meta=["docno"])
+    indexer = pt.IterDictIndexer(
+        str(index_dir),
+        fields=["text"],
+        meta=["docno"]
+    )
     indexref = indexer.index(df.to_dict(orient="records"))
 
     index = pt.IndexFactory.of(indexref)
@@ -68,7 +75,9 @@ def indexar_y_buscar(input_dir: str, queries_df) -> pd.DataFrame:
     results['docno'] = results['docno'].astype(str)
 
     results['relevant'] = results.apply(
-        lambda row: 1 if str(row['docno']) in row['relevant_docs'] else 0, axis=1
+        lambda row: 1
+        if str(row['docno']) in row['relevant_docs']
+        else 0, axis=1
     )
 
     return results[["qid", "docno", "score", "rank", "relevant"]]
@@ -119,6 +128,7 @@ def construir_df_de_queries(base_dir: Path) -> pd.DataFrame:
 
     return pd.DataFrame(data)
 
+
 def construir_qrels_df(qrels_path: Path) -> pd.DataFrame:
     data = []
     with open(qrels_path, "r", encoding="utf-8") as f:
@@ -130,24 +140,37 @@ def construir_qrels_df(qrels_path: Path) -> pd.DataFrame:
                 data.append({"qid": qid, "docno": docno, "label": 1})
     return pd.DataFrame(data)
 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Indexador con PyTerrier.")
-    parser.add_argument("base_dir", type=str, help="(directorio vaswani) directorio raíz que contiene qrels, query-text.trec y corpus/doc-text.trec")
+    parser.add_argument(
+        "base_dir",
+        type=str,
+        help="""(directorio vaswani) directorio raíz que contiene qrels,
+        query-text.trec y corpus/doc-text.trec"""
+    )
     args = parser.parse_args()
 
     base_path = Path(args.base_dir).resolve()
     corpus_path = base_path / "corpus" / "doc-text.trec"
 
-    # Crear el dataframe de queries con sus documentos relevantes
+    # Creamos el dataframe de queries con sus documentos relevantes
     queries_df = construir_df_de_queries(base_path)
 
-    # Usar las primeras 11 queries como ejemplo
+    # Usamos las primeras 11 queries como ejemplo
     primeros_11 = queries_df.head(11)
 
-    # Ejecutar búsqueda con PyTerrier
+    print(primeros_11)
+
+    # Ejecutamos la búsqueda con PyTerrier
     results = indexar_y_buscar(str(corpus_path), primeros_11)
 
-    # Mostrar resultados por query
+    # Y mostramos resultados por query
     for qid, group in results.groupby("qid"):
         print(f"\nResultados para la query {qid}:")
-        print(group[["docno", "score", "rank", "relevant"]].head(11).to_string(index=False))
+        print(group[[
+            "docno",
+            "score",
+            "rank",
+            "relevant"
+        ]].head(11).to_string(index=False))
