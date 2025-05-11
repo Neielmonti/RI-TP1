@@ -1,139 +1,154 @@
-import os
-import json
-import re
-import subprocess
-import platform
-import heapq
-import sys
-from nltk.stem import SnowballStemmer
+# indexador.py
+from bs4 import BeautifulSoup
+from pathlib import Path
+import pyterrier as pt
+import pandas as pd
+import argparse
+import shutil
+from scipy.stats import kendalltau, spearmanr
 
 
-class TextProcessor:
-    def __init__(self, folder):
-        self.folder = folder
-        self.json_file = "palabras.json"
-        self.sorting_file = "ordenado.txt"
-        self.token_count = 0
-        self.doc_count = 0
-        self.stemmer = SnowballStemmer("spanish")
-        self.json_data = self.load_json()
+def limpiar_html(input_dir: Path) -> pd.DataFrame:
+    docs = []
+    file_index = 0
 
-        if "data" not in self.json_data:
-            self.json_data["data"] = {}
-        if "statistics" not in self.json_data:
-            self.json_data["statistics"] = {}
+    print("Leyendo documentos del corpus")
 
-    def readline_plus(self, file) -> str:
-        """Lee una línea del archivo y actualiza el contador de tokens."""
-        aux = re.sub("\n", "", file.readline())
-        if aux:
-            self.token_count += 1
-        return aux
+    # Funcion recursiva para recorrer todos
+    # los directorios de este particular corpus
+    def directory_dfs(path: Path) -> None:
 
-    def open_files_from_folder(self):
-        """Abre y procesa los archivos de texto dentro del folder."""
-        files = sorted(f for f in os.listdir(self.folder) if f.endswith('.txt'))
+        nonlocal file_index
 
-        for file in files:
-            doc_id = file
+        for x in path.iterdir():
+            if x.is_dir():
+                # Llamada recursiva con el subdirectorio
+                directory_dfs(x)
+            else:
+                # Procesar archivo HTML
+                with open(x, "r", encoding="utf-8") as f:
+                    html = f.read()
+                soup = BeautifulSoup(html, features="html.parser")
+                for script in soup(["script", "style"]):
+                    script.extract()
+                text = soup.get_text()
+                lines = (line.strip() for line in text.splitlines())
+                chunks = (phrase.strip()
+                          for line in lines
+                          for phrase in line.split("  "))
+                cleaned_text = '\n'.join(chunk for chunk in chunks if chunk)
+                docs.append({
+                    "docno": x.name,
+                    "docid": str(file_index),
+                    "text": cleaned_text
+                })
+                file_index += 1
+                if file_index % 100 == 0:
+                    print(f"Documentos procesados: {file_index}")
 
-            # Ordenar las palabras dentro del archivo
-            self.sort_words_so(os.path.join(self.folder, file), self.sorting_file)
+    directory_dfs(input_dir)
+    return pd.DataFrame(docs)
 
-            with open(self.sorting_file, "r", encoding="utf-8") as f:
-                word1 = self.readline_plus(f)
-                while word1:
-                    contador = 1
-                    word2 = self.readline_plus(f)
 
-                    while word1 == word2 and word1:
-                        contador += 1
-                        word2 = self.readline_plus(f)
+def indexar_documentos(df: pd.DataFrame):
+    # Esta funcion simplemente crea el indice a partir del DF del corpus
 
-                    self.update_json_in_memory(self.json_data["data"], word1, doc_id, contador)
-                    word1 = word2
+    index_dir = Path("indice").resolve()
+    if index_dir.exists():
+        shutil.rmtree(index_dir)
 
-        self.save_json()
-
-    def sort_words_so(self, filename, output_file):
-        """Ordena las palabras de un archivo usando el método adecuado según el sistema operativo."""
-        if platform.system() == "Windows":
-            self.sort_words_windows(filename, output_file)
-        else:
-            self.sort_words_unix(filename, output_file)
-
-    def sort_words_unix(self, filename, output_file):
-        """Ordena las palabras en sistemas Unix."""
-        command = (
-            f"cat {filename} | tr '[:upper:]' '[:lower:]' | tr -s '[:space:]' '\n' "
-            f"| sed 's/[^a-z]/ /g' | tr -s ' ' '\n' | sed '/^$/d' | sort > {output_file}"
+    indexer = pt.IterDictIndexer(
+        str(index_dir),
+        fields=["text"],
+        meta=["docno", "docid"]
         )
-        subprocess.run(command, shell=True, check=True)
+    indexref = indexer.index(df.to_dict(orient="records"))
+    return pt.IndexFactory.of(indexref)
 
-    def sort_words_windows(self, filename, output_file):
-        """Ordena las palabras en Windows usando un heap."""
-        heap = []
 
-        with open(filename, 'r', encoding='utf-8') as file:
-            for line in file:
-                line = re.sub(r'[^a-z\s]', ' ', line.lower())
-                for word in line.split():
-                    heapq.heappush(heap, word)
+def comparar_modelos(index, queries: list[str]) -> None:
+    # Esta funcion crea 2 retrievers, y por cada query, hace
+    # un analisis de correlacion (Spearman y Kendall)
+    # Esto lo hace para rankings de 10, 25 y 50 elementos
 
-        with open(output_file, 'w', encoding='utf-8') as output:
-            while heap:
-                output.write(heapq.heappop(heap) + '\n')
+    tfidf = pt.BatchRetrieve(index, wmodel="TF_IDF")
+    bm25 = pt.BatchRetrieve(index, wmodel="BM25")
+    correlaciones = []
 
-    def update_json_in_memory(self, data, palabra, doc_id, freq):
-        """Actualiza el diccionario JSON en memoria con la información de frecuencia de términos."""
-        palabra_stemmed = self.stemmer.stem(palabra)
+    print("Comparando modelos para cada query")
 
-        if palabra_stemmed not in data:
-            data[palabra_stemmed] = {
-                "palabra": palabra_stemmed, "df": 0, "apariciones": {}
-            }
+    for i, query in enumerate(queries):
+        print(f"  > Procesando query {i + 1}/{len(queries)}: {query}")
+        tfidf_results = tfidf.search(query).reset_index(drop=True)
+        bm25_results = bm25.search(query).reset_index(drop=True)
 
-        if doc_id not in data[palabra_stemmed]["apariciones"]:
-            data[palabra_stemmed]["df"] += 1
+        merged = pd.merge(
+            tfidf_results,
+            bm25_results,
+            on="docno",
+            suffixes=("_tfidf", "_bm25")
+            )
 
-        data[palabra_stemmed]["apariciones"][doc_id] = freq
+        for k in [10, 25, 50]:
+            top_k = merged.head(k)
+            if len(top_k) < k:
+                # Saltar si no hay suficientes documentos en el ranking
+                continue
 
-    def load_json(self):
-        """Carga los datos desde el archivo JSON si existe."""
-        try:
-            with open(self.json_file, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except (FileNotFoundError, json.JSONDecodeError):
-            return {}
+            ranks_tfidf = top_k["rank_tfidf"]
+            ranks_bm25 = top_k["rank_bm25"]
 
-    def save_json(self):
-        """Guarda los datos en el archivo JSON."""
-        with open(self.json_file, "w", encoding="utf-8") as f:
-            json.dump(self.json_data, f, ensure_ascii=False, indent=4)
+            spearman = spearmanr(ranks_tfidf, ranks_bm25).correlation
+            kendall = kendalltau(ranks_tfidf, ranks_bm25).correlation
+            correlaciones.append({
+                "query": query,
+                "top_k": k,
+                "spearman": spearman,
+                "kendall": kendall
+            })
 
-    def save_json_statistics(self):
-        """Guarda estadísticas del corpus en el JSON."""
-        self.json_data["statistics"] = {
-            "N": self.doc_count,
-            "num_terms": len(self.json_data["data"]),
-            "num_tokens": self.token_count,
-        }
-        self.save_json()
+    return pd.DataFrame(correlaciones)
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        print("Uso: python script.py <ruta_del_folder_corpus>")
-        sys.exit(1)
+    parser = argparse.ArgumentParser(
+        description="Indexa y compara modelos TF-IDF y BM25 con PyTerrier"
+        )
+    parser.add_argument(
+        "input_dir",
+        type=str,
+        help="Ruta al directorio wiki-small"
+        )
+    parser.add_argument(
+        "compare_models",
+        type=str,
+        help="Indica si se quiere comparar modelos o no (values: [y,n])"
+        )
+    args = parser.parse_args()
 
-    folder_corpus = sys.argv[1]
+    if not pt.java.started():
+        pt.java.init()
 
-    if not os.path.isdir(folder_corpus):
-        print(f"Error: El folder '{folder_corpus}' no existe.")
-        sys.exit(1)
+    input_path = Path(args.input_dir).resolve()
+    df_docs = limpiar_html(input_path)
+    index = indexar_documentos(df_docs)
 
-    processor = TextProcessor(folder_corpus)
-    processor.open_files_from_folder()
-    processor.save_json_statistics()
+    # 5 queries manuales derivadas de necesidades de información
+    queries = [
+        "historia de la segunda guerra mundial",
+        "procesos de fotosíntesis en plantas",
+        "biografía de Albert Einstein",
+        "impacto del cambio climático en los océanos",
+        "estructura del sistema solar"
+    ]
 
-    os.remove(processor.sorting_file)
+    if (args.compare_models == "y"):
+        correlaciones_df = comparar_modelos(index, queries)
+        print(correlaciones_df)
+    elif (args.compare_models == "n"):
+        tfidf = pt.BatchRetrieve(index, wmodel="TF_IDF")
+        for query in queries:
+            tfidf_results = tfidf.search(query).reset_index(drop=True)
+            print(tfidf_results.head(11))
+    else:
+        print("[ERROR] valor invalido en compare_models")

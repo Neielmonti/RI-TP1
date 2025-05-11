@@ -1,67 +1,85 @@
+venv
+
 # Para linux
 
-TP2/RI-tknz-data
+TP1/RI-tknz-data
 
-TP2/EJ1/collection_test
-TP2/EJ1/palabras.json
+TP1/EJ1/collection_test
+TP1/EJ1/palabras.json
 
-TP2/EJ2/estadisticas.txt
-TP2/EJ2/frecuencias.txt
-TP2/EJ2/terminos.txt
-TP2/EJ2/palabras.json
-TP2/EJ2/RI-tknz-data
+TP1/EJ2/estadisticas.txt
+TP1/EJ2/frecuencias.txt
+TP1/EJ2/terminos.txt
+TP1/EJ2/palabras.json
+TP1/EJ2/RI-tknz-data
 
-TP2/EJ3/RE_collection_test
-TP2/EJ3/estadisticas.txt
-TP2/EJ3/frecuencias.txt
-TP2/EJ3/terminos.txt
-TP2/EJ3/palabras.json
+TP1/EJ3/RE_collection_test
+TP1/EJ3/estadisticas.txt
+TP1/EJ3/frecuencias.txt
+TP1/EJ3/terminos.txt
+TP1/EJ3/palabras.json
 
-TP2/EJ4/collection_test
-TP2/EJ4/palabras.json
+TP1/EJ4/collection_test
+TP1/EJ4/palabras.json
 
-TP2/EJ5/vaswani
-TP2/EJ5/lancaster.json
-TP2/EJ5/porter.json
+TP1/EJ5/vaswani
+TP1/EJ5/lancaster.json
+TP1/EJ5/porter.json
 
-TP2/EJ6/languageIdentificationData
-TP2/EJ6/output.txt
-TP2/EJ6/langdetect
+TP1/EJ6/languageIdentificationData
+TP1/EJ6/output.txt
+TP1/EJ6/langdetect
 
-TP3/EJ4/en
-TP3/EJ4/indice
-TP3/EJ7/indice
+TP2/EJ4/en
+TP2/EJ4/indice
+TP2/EJ7/indice
+
+TP3/EJ3/index
+
+TP4/wiki-large
+TP4/wiki-small
+TP4/wiki-micro
+TP4/wiki-large.tar
+TP4/wiki-small.tar
 
 # Para windows
 
-TP2\RI-tknz-data
+TP1\RI-tknz-data
 
-TP2\EJ1\collection_test
-TP2\EJ1\palabras.json
+TP1\EJ1\collection_test
+TP1\EJ1\palabras.json
 
-TP2\EJ2\estadisticas.txt
-TP2\EJ2\frecuencias.txt
-TP2\EJ2\terminos.txt
-TP2\EJ2\palabras.json
-TP2\EJ2\RI-tknz-data
+TP1\EJ2\estadisticas.txt
+TP1\EJ2\frecuencias.txt
+TP1\EJ2\terminos.txt
+TP1\EJ2\palabras.json
+TP1\EJ2\RI-tknz-data
 
-TP2\EJ3\RE_collection_test
-TP2\EJ3\estadisticas.txt
-TP2\EJ3\frecuencias.txt
-TP2\EJ3\terminos.txt
-TP2\EJ3\palabras.json
+TP1\EJ3\RE_collection_test
+TP1\EJ3\estadisticas.txt
+TP1\EJ3\frecuencias.txt
+TP1\EJ3\terminos.txt
+TP1\EJ3\palabras.json
 
-TP2\EJ4\collection_test
-TP2\EJ4\palabras.json
+TP1\EJ4\collection_test
+TP1\EJ4\palabras.json
 
-TP2\EJ5\vaswani
-TP2\EJ5\lancaster.json
-TP2\EJ5\porter.json
+TP1\EJ5\vaswani
+TP1\EJ5\lancaster.json
+TP1\EJ5\porter.json
 
-TP2\EJ6\languageIdentificationData
-TP2\EJ6\output.txt
-TP2\EJ6\langdetect
+TP1\EJ6\languageIdentificationData
+TP1\EJ6\output.txt
+TP1\EJ6\langdetect
 
-TP3\EJ4\en
-TP3\EJ4\indice
-TP3\EJ7\indice
+TP2\EJ4\en
+TP2\EJ4\indice
+TP2\EJ7\indice
+
+TP3\EJ3\index
+
+TP4\wiki-large
+TP4\wiki-small
+TP4\wiki-micro
+TP4\wiki-large.tar
+TP4\wiki-small.tar

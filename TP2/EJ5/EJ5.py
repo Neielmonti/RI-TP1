@@ -1,161 +1,103 @@
-import os
-import json
+from bs4 import BeautifulSoup
+from pathlib import Path
+import argparse
+from tokenicer import TextProcessor
 import re
-import subprocess
-import platform
-import heapq
-import sys
-from nltk.stem import PorterStemmer, LancasterStemmer
+from collections import Counter
+from collections import defaultdict
+import math
 
-class TextProcessor:
-    def __init__(self, file):
-        self.file = file
+file_index = 0
+textProcessor = TextProcessor() 
 
-        self.json_porter_file = "porter.json"
-        self.json_lancaster_file = "lancaster.json"
-
-        self.sorting_file = "ordenado.txt"
-        self.token_count = 0
-        self.doc_count = 0
-
-        self.porter_stemmer = PorterStemmer()
-        self.lancaster_stemmer = LancasterStemmer()
-
-        self.porter_stemmer.term_count = 0
-        self.lancaster_stemmer.term_count = 0
-        
-        self.json_porter_data = self.load_json(self.json_porter_file)
-        self.json_lancaster_data = self.load_json(self.json_lancaster_file)
-
-        self.prepareJsons(self.json_porter_data)
-        self.prepareJsons(self.json_lancaster_data)
-
-    def prepareJsons(self, json_data):
-        if "data" not in json_data:
-            json_data["data"] = {}
-        if "statistics" not in json_data:
-            json_data["statistics"] = {}
-
-    def readline_plus(self, file) -> str:
-        """Lee una línea del archivo y actualiza el contador de tokens."""
-        aux = re.sub("\n", "", file.readline())
-        if aux:
-            self.token_count += 1
-        return aux
-
-    def process_text(self):
-        pattern = r"<DOCNO>\s*([0-9]+)\s*</DOCNO>"
-
-        with open(self.file) as trec_file:
-            line = trec_file.readline().strip()
-            while line:
-                if line == "<DOC>":
-                # New document.
-                    self.doc_count += 1
-                    line = trec_file.readline().strip()
-                    docno_match = re.search(pattern, line)
-                    docno = docno_match.group(1)
-                    line = trec_file.readline().strip()
-                if line != "<\DOC>":
-                    tokens = self.clean_and_divide(line)
-                    for token in tokens:
-                        self.token_count += 1
-                        print(f"Token: {token}")
-                        self.update_json_in_memory(self.json_porter_data["data"], token, docno, 1, self.porter_stemmer)
-                        self.update_json_in_memory(self.json_lancaster_data["data"], token, docno, 1, self.lancaster_stemmer)
-                    line = trec_file.readline().strip()
-        self.save_json(self.json_porter_file, self.json_porter_data)
-        self.save_json(self.json_lancaster_file, self.json_lancaster_data)
-        self.save_json_statistics(self.json_porter_file, self.json_porter_data, self.porter_stemmer)
-        self.save_json_statistics(self.json_lancaster_file, self.json_lancaster_data, self.lancaster_stemmer)
-
-
-    def clean_and_divide(self,text):
-        clean_text = re.sub(r'[^a-zA-Z0-9ÁÉÍÓÚáéíóúÑñ]', ' ', text)
-        words = clean_text.split()
-        return words
-
-
-    def sort_words_so(self, filename, output_file):
-        """Ordena las palabras de un archivo usando el método adecuado según el sistema operativo."""
-        if platform.system() == "Windows":
-            self.sort_words_windows(filename, output_file)
+def directory_dfs(path: Path, textProcessor: TextProcessor) -> None:
+    global file_index
+    for x in path.iterdir():
+        if x.is_dir():
+            directory_dfs(x, textProcessor)
         else:
-            self.sort_words_unix(filename, output_file)
+            if (file_index % 250) == 0:
+                print(f"Procesando archivo: {file_index}")
+            with open(x, "r", encoding="utf-8") as f:
+                html = f.read()
+            soup = BeautifulSoup(html, features="html.parser")
+            for script in soup(["script", "style"]):
+                script.extract()
+            text = soup.get_text()
+            textProcessor.process_text(text, str(file_index))
+            file_index += 1
 
-    def sort_words_unix(self, filename, output_file):
-        command = (
-            f"cat {filename} | tr '[:upper:]' '[:lower:]' | tr -s '[:space:]' '\n' "
-            f"| sed 's/[^a-z]/ /g' | tr -s ' ' '\n' | sed '/^$/d' | sort > {output_file}"
-        )
-        subprocess.run(command, shell=True, check=True)
 
-    def sort_words_windows(self, filename, output_file):
-        heap = []
+def contar_frecuencia(texto: str) -> list:
+    palabras = re.findall(r'\b[a-záéíóúñü]+\b', texto.lower(), re.UNICODE)
+    contador = Counter(palabras)
 
-        with open(filename, 'r', encoding='utf-8') as file:
-            for line in file:
-                line = re.sub(r'[^a-z\s]', ' ', line.lower())
-                for word in line.split():
-                    heapq.heappush(heap, word)
+    lista_terminos = []
+    for palabra, freq in contador.items():
+        lista_terminos.append({
+            "termino": palabra,
+            "frecuencia": freq
+        })
 
-        with open(output_file, 'w', encoding='utf-8') as output:
-            while heap:
-                output.write(heapq.heappop(heap) + '\n')
-                
+    return lista_terminos
 
-    def update_json_in_memory(self, data, palabra, doc_id, freq, stemmer):
-        """Actualiza el diccionario JSON en memoria con la información de frecuencia de términos."""
-        stemmed_term = stemmer.stem(palabra)
 
-        stemmer.term_count += 1
+def ejecutar_query(index_data, query: str):
+    terminos = contar_frecuencia(query)
+    puntajes = defaultdict(float)
 
-        print(f"Stemmed by {stemmer.__class__.__name__}: {stemmed_term}")
+    for t in terminos:
+        if t['termino'] in index_data:
+            df = index_data[t['termino']]["df"]
+            t["idf"] = math.log10(df) if df > 0 else 0
+            t["documentos"] = index_data[t['termino']]["apariciones"]
+        else:
+            t["idf"] = 0
+            t["documentos"] = {}
 
-        if stemmed_term not in data:
-            data[stemmed_term] = {
-                "palabra": stemmed_term, "df": 0, "apariciones": {}
-            }
+    for t in terminos:
+        freq_query = t["frecuencia"]
+        idf = t["idf"]
+        docs = t["documentos"]
 
-        if doc_id not in data[stemmed_term]["apariciones"]:
-            data[stemmed_term]["df"] += 1
+        for doc_id, freq_doc in docs.items():
+            tf = 1 + math.log10(freq_doc)
+            peso = tf * idf * freq_query
+            puntajes[doc_id] += peso
 
-        data[stemmed_term]["apariciones"][doc_id] = freq
+    ranking = sorted(puntajes.items(), key=lambda x: x[1], reverse=True)
+    return ranking
 
-    def load_json(self,json_file):
-        """Carga los datos desde el archivo JSON si existe."""
-        try:
-            with open(json_file, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except (FileNotFoundError, json.JSONDecodeError):
-            return {}
 
-    def save_json(self, file, data):
-        """Guarda los datos en el archivo JSON."""
-        with open(file, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=4)
+def indexar_y_buscar(input_dir: str, query: str):
+    textProcessor = TextProcessor()
+    directory_dfs(Path(input_dir), textProcessor)
 
-    def save_json_statistics(self, file, data, stemmer):
-        """Guarda estadísticas del corpus en el JSON."""
-        data["statistics"] = {
-            "N": self.doc_count,
-            "num_terms": len(data["data"]),
-            "num_tokens": self.token_count,
-        }
-        self.save_json(file,data)
+    # Acá no se guarda nada, solo se usa el índice directamente
+    return ejecutar_query(textProcessor.json_data, query)
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Indexador con PyTerrier.")
+    parser.add_argument(
+        "input_dir",
+        type=str,
+        help="Directorio raíz con los archivos HTML"
+        )
+    args = parser.parse_args()
 
-    if len(sys.argv) != 2:
-        print("Uso: python script.py <ruta_del_folder_corpus>")
-        sys.exit(1)
+    print("Indexando documentos...")
+    textProcessor = TextProcessor()
+    directory_dfs(Path(args.input_dir), textProcessor)
 
-    file_corpus = sys.argv[1]
+    print("""Indexación completada.""")
+    while True:
+        query = input("\nIngrese una query, o ingrese <quit> para salir: ")
+        if query.lower() in ("quit"):
+            break
 
-    if not os.path.isfile(file_corpus):
-        print(f"Error: El archivo '{file_corpus}' no existe.")
-        sys.exit(1)
+        resultados = ejecutar_query(textProcessor.json_data, query)
 
-    processor = TextProcessor(file_corpus)
-    processor.process_text()
+        print("Ranking de documentos:")
+        for doc_id, score in resultados:
+            print(f"Doc {doc_id}: {score:.4f}")
