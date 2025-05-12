@@ -41,6 +41,11 @@ TP4/wiki-small
 TP4/wiki-micro
 TP4/wiki-large.tar.gz
 TP4/wiki-small.tar.gz
+TP4/_pycache_
+TP4/postings/*
+!TP4/postings
+TP4/vocabs/*
+!TP4/vocabs
 
 # Para windows
 
@@ -83,3 +88,8 @@ TP4\wiki-small
 TP4\wiki-micro
 TP4\wiki-large.tar
 TP4\wiki-small.tar
+TP4\_pycache_
+TP4\postings\*
+!TP4\postings
+TP4\vocabs\*
+!TP4\vocabs
