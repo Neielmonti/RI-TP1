@@ -17,8 +17,8 @@ index_path = "./index"
 lambda_value = 0.6  # Segun terrier.org 'The default constructor uses the default value of lambda = 0.15'
 mu_value = 2000  # Segun terrier.org 'This class sets mu to 2500 by default'
 
-# Dejo las declaraciones de los parametros, pero en base a mis pruebas, no parecen cambiar el comportamiento del retriever.
-# Por lo que creo que se estan utilizando los valores default 0.15 y 2500 respectivamente
+# Dejo la declaracion del parametro Mu, pero en base a mis pruebas, no parecen cambiar el comportamiento del retriever DirichletLM
+# Por lo que creo que se esta utilizando el valor default 2500
 
 TF_IDF = pt.terrier.Retriever(vaswani.get_index(), wmodel="TF_IDF")
 DLM = pt.terrier.Retriever(
