@@ -37,16 +37,16 @@ TP2/EJ7/indice
 TP3/EJ3/index
 TP3/EJ3/.ruff.cache
 
-TP4/wiki-large
-TP4/wiki-small
-TP4/wiki-micro
-TP4/wiki-large.tar.gz
-TP4/wiki-small.tar.gz
-TP4/__pycache__
-TP4/postings/*
-!TP4/postings
-TP4/vocabs/*
-!TP4/vocabs
+TP4/EJ1/wiki-large
+TP4/EJ1/wiki-small
+TP4/EJ1/wiki-micro
+TP4/EJ1/wiki-large.tar.gz
+TP4/EJ1/wiki-small.tar.gz
+TP4/EJ1/__pycache__
+TP4/EJ1/postings/*
+!TP4/EJ1/postings
+TP4/EJ1/vocabs/*
+!TP4/EJ1/vocabs
 
 # Para windows
 
@@ -85,13 +85,13 @@ TP2\EJ7\indice
 TP3\EJ3\index
 TP3\EJ3\.ruff.cache
 
-TP4\wiki-large
-TP4\wiki-small
-TP4\wiki-micro
-TP4\wiki-large.tar
-TP4\wiki-small.tar
-TP4\__pycache__
-TP4\postings\*
-!TP4\postings
-TP4\vocabs\*
-!TP4\vocabs
+TP4\EJ1\wiki-large
+TP4\EJ1\wiki-small
+TP4\EJ1\wiki-micro
+TP4\EJ1\wiki-large.tar
+TP4\EJ1\wiki-small.tar
+TP4\EJ1\__pycache__
+TP4\EJ1\postings\*
+!TP4\EJ1\postings
+TP4\EJ1\vocabs\*
+!TP4\EJ1\vocabs
