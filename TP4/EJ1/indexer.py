@@ -48,7 +48,8 @@ class Indexer:
             self.n_iterations = 0
 
     def cargar_indice(self):
-        self.textProcessor.cargar_indice()
+        self.textProcessor.setVocabulary()
+        self.textProcessor.loadIndex()
 
 
 def main():

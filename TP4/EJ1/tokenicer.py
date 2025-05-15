@@ -7,28 +7,27 @@ from collections import defaultdict
 import nltk
 from nltk.corpus import stopwords
 import struct
-import pprint
+import pickle
 import heapq
 from collections import defaultdict
 import pprint
+import os
 
 class TextProcessor:
     def __init__(self):
-        #self.token_count = 0
-        #self.doc_count = 0
-
         nltk.download("stopwords")
         self.stopwords = set(stopwords.words("english"))
-        #nltk.download("stopwords", quiet=True)
-        #self.stopwords = set(stopwords.words("spanish"))
 
         self.json_data = defaultdict(
             lambda: {"postings": {}}
             )
+    
         self.epoch = 0
         self.PATH_CHUNKS = "chunks/chunk"
         self.PATH_VOCAB = "vocabulary.bin"
         self.PATH_POSTINGS = "postings.bin"
+        self.index = {}
+
         self.terms = []
 
 
@@ -124,7 +123,7 @@ class TextProcessor:
         self.epoch += 1
 
     '''
-    def getVocabulary(self):
+    def setVocabulary(self):
         print(f"Epoch {self.epoch}")
 
         postings_lists = [[] for _ in range(len(self.terms))]
@@ -145,12 +144,19 @@ class TextProcessor:
         return postings_lists
     '''
 
-    def getVocabulary(self):
+    def setVocabulary(self):
         with open(self.PATH_VOCAB, "wb") as v_file, open(self.PATH_POSTINGS, "wb") as p_file:
             offset = 0
+            vocab = {}
             
             for termID, term in enumerate(self.terms):
                 postings_list = []
+
+                for e in range(self.epoch):
+                    chunk_file = self.PATH_CHUNKS + str(e) + ".bin"
+                    if not os.path.exists(chunk_file):
+                        print("[ERROR]: Hay archivos de chunk faltantes")
+                        return
                 
                 # Recorro todos los chunks para este término
                 for epoch in range(self.epoch):
@@ -166,24 +172,39 @@ class TextProcessor:
                             if tID == termID:
                                 postings_list.append((docID, freq))
                 
-
+                # Ordenar y consolidar postings
                 postings_list.sort()
-                df = sum(freq for _, freq in postings_list)
+                df = len(postings_list)
                 
+                # Escribir postings a postings.bin
                 for docID, freq in postings_list:
                     p_file.write(struct.pack("II", docID, freq))
                 
-                v_file.write(f"{termID}\t{offset}\t{df}\n".encode("utf-8"))
-                offset += len(postings_list) * 8
+                # Guardar en el diccionario de vocabulario
+                vocab[term] = (offset, df)
+                offset += len(postings_list) * 8  # Cada (docID, freq) ocupa 8 bytes
+            
+            # Serializar el vocabulario
+            pickle.dump(vocab, v_file)
 
+    def searchTerm(self, term: str) -> None:
+        offset, df = self.index[term]
+        if not offset:
+            return []
+        postings = []
+        with open(self.PATH_POSTINGS, "rb") as p_file:
+            p_file.seek(offset)
+            for _ in range(df):
+                docID, freq = struct.unpack("II", p_file.read(8))
+                postings.append((docID, freq))
+        return postings
 
-    def cargar_indice(self):
-        self.getVocabulary()
-        """
-        voc = self.getVocabulary()
-        print("LISTA DE POSTING_LISTS")
-        for i in range(len(self.terms)):
-            print(f"\nTermino: {self.terms[i]}\nPostings_list: {voc[i]}")
-            continue
-        #print(voc)
-        """
+    
+    def loadIndex(self):
+        if not os.path.exists(self.PATH_VOCAB):
+            print("[ERROR]: No existe un archivo de vocabulario")
+            return
+        with open(self.PATH_VOCAB, "rb") as v_file:
+            vocab = pickle.load(v_file)
+            self.index = {term: (offset, df) for term, (offset, df) in vocab.items()}
+            pprint.pprint(self.index)
