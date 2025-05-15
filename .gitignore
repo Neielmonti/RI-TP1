@@ -43,10 +43,10 @@ TP4/EJ1/wiki-micro
 TP4/EJ1/wiki-large.tar.gz
 TP4/EJ1/wiki-small.tar.gz
 TP4/EJ1/__pycache__
-TP4/EJ1/postings/*
-!TP4/EJ1/postings
-TP4/EJ1/vocabs/*
-!TP4/EJ1/vocabs
+TP4/EJ1/chunks/*
+!TP4/EJ1/chunks
+TP4/EJ1/postings.bin
+TP4/EJ1/vocabulary.bin
 
 # Para windows
 
@@ -91,7 +91,7 @@ TP4\EJ1\wiki-micro
 TP4\EJ1\wiki-large.tar
 TP4\EJ1\wiki-small.tar
 TP4\EJ1\__pycache__
-TP4\EJ1\postings\*
-!TP4\EJ1\postings
-TP4\EJ1\vocabs\*
-!TP4\EJ1\vocabs
+TP4\EJ1\chunks\*
+!TP4\EJ1\chunks
+TP4\EJ1\postings.bin
+TP4\EJ1\vocabulary.bin

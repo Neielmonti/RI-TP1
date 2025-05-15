@@ -27,6 +27,8 @@ class TextProcessor:
             )
         self.epoch = 0
         self.PATH_CHUNKS = "chunks/chunk"
+        self.PATH_VOCAB = "vocabulary.bin"
+        self.PATH_POSTINGS = "postings.bin"
         self.terms = []
 
 
@@ -94,12 +96,12 @@ class TextProcessor:
 
     def update_json_in_memory(self, term, docID, freq):
         try:
-            id = self.terms.index(term)
+            termid = self.terms.index(term)
         except ValueError:
-            id = len(self.terms)
+            termid = len(self.terms)
             self.terms.append(term)
 
-        term_data = self.json_data[id]
+        term_data = self.json_data[termid]
         term_data["postings"][docID] = freq
 
 
@@ -107,7 +109,6 @@ class TextProcessor:
         chunk_file = self.PATH_CHUNKS + str(self.epoch) + ".bin"
 
         print(f"analizando epoca {self.epoch}: ")
-        pprint.pprint(self.json_data)
 
         with open(chunk_file, "wb") as p_file:
             # HACE FALTA ORDENARLOS ACA? TAL VEZ NO, Y TAL VEZ SOLO SUMA PROCESAMIENTO PARA NADA
@@ -122,32 +123,67 @@ class TextProcessor:
             )
         self.epoch += 1
 
-
+    '''
     def getVocabulary(self):
         print(f"Epoch {self.epoch}")
 
-        postings_lists = [[]] * len(self.terms)
+        postings_lists = [[] for _ in range(len(self.terms))]
 
-        for i in range(self.epoch - 1):
-
+        for i in range(self.epoch):
             chunk_file = self.PATH_CHUNKS + str(i) + ".bin"
         
-            with open(chunk_file, "rb") as p_file:
+            with open(chunk_file, "rb") as c_file:
                 while True:
 
-                    data = p_file.read(12)
+                    data = c_file.read(12)
                     if not data:
                         break
 
                     posting = struct.unpack("III", data)
                     postings_lists[posting[0]].append((posting[1],posting[2]))
-            
+
         return postings_lists
+    '''
+
+    def getVocabulary(self):
+        with open(self.PATH_VOCAB, "wb") as v_file, open(self.PATH_POSTINGS, "wb") as p_file:
+            offset = 0
+            
+            for termID, term in enumerate(self.terms):
+                postings_list = []
+                
+                # Recorro todos los chunks para este término
+                for epoch in range(self.epoch):
+                    chunk_file = self.PATH_CHUNKS + str(epoch) + ".bin"
+                    with open(chunk_file, "rb") as c_file:
+                        while True:
+                            data = c_file.read(12)
+                            if not data:
+                                break
+                            
+                            tID, docID, freq = struct.unpack("III", data)
+                            
+                            if tID == termID:
+                                postings_list.append((docID, freq))
+                
+
+                postings_list.sort()
+                df = sum(freq for _, freq in postings_list)
+                
+                for docID, freq in postings_list:
+                    p_file.write(struct.pack("II", docID, freq))
+                
+                v_file.write(f"{termID}\t{offset}\t{df}\n".encode("utf-8"))
+                offset += len(postings_list) * 8
 
 
     def cargar_indice(self):
+        self.getVocabulary()
+        """
         voc = self.getVocabulary()
         print("LISTA DE POSTING_LISTS")
         for i in range(len(self.terms)):
-            print(f"/nTermino: {self.terms[i]}/nPostings_list: {voc[i]}")
-        #pprint.pprint(voc)
+            print(f"\nTermino: {self.terms[i]}\nPostings_list: {voc[i]}")
+            continue
+        #print(voc)
+        """

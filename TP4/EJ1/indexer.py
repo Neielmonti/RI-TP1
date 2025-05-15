@@ -10,14 +10,17 @@ class Indexer:
             self.n_iterations = 0
             self.file_index = 0
             self.textProcessor = TextProcessor() 
+            self.nDdocsToDisc = 0
+            self.path = ""
 
-    def directory_dfs(self, path: Path, textProcessor: TextProcessor, N_docs_to_disc: int) -> None:
+    def directory_dfs(self, path: Path) -> None:
         for x in path.iterdir():
             if x.is_dir():
-                self.directory_dfs(x, textProcessor, N_docs_to_disc)
+                self.directory_dfs(x)
             else:
-                if (self.file_index % 250) == 0:
-                    print(f"Procesando archivo: {self.file_index}")
+                print(f"Procesando archivo: {self.file_index}")
+                #if (self.file_index % 250) == 0:
+                #    print(f"Procesando archivo: {self.file_index}")
                 with open(x, "r", encoding="utf-8") as f:
                     html = f.read()
                 soup = BeautifulSoup(html, features="html.parser")
@@ -25,23 +28,24 @@ class Indexer:
                     script.extract()
                 text = soup.get_text()
 
-                textProcessor.process_text(text, str(self.file_index))
+                self.textProcessor.process_text(text, str(self.file_index))
                 self.file_index += 1
                 self.n_iterations += 1
 
-                if self.n_iterations >= N_docs_to_disc:
-                    textProcessor.serializar()
+                if self.n_iterations >= self.nDdocsToDisc:
+                    self.textProcessor.serializar()
                     self.n_iterations = 0
-
-        if self.n_iterations > 0:
-            textProcessor.serializar()
-            self.n_iterations = 0
 
     
     def index_files(self, path: Path, N_docs_to_disc=1) -> None:
+        self.nDdocsToDisc = N_docs_to_disc
+
         #cantidad_archivos = sum([len(files) for _, _, files in os.walk(path)])
-        self.directory_dfs(path, self.textProcessor, N_docs_to_disc)
-        self.textProcessor.serializar()
+
+        self.directory_dfs(path)
+        if self.n_iterations > 0:
+            self.textProcessor.serializar()
+            self.n_iterations = 0
 
     def cargar_indice(self):
         self.textProcessor.cargar_indice()
@@ -54,7 +58,7 @@ def main():
     args = parser.parse_args()
 
     indexer = Indexer()
-    indexer.index_files(Path(args.path))
+    indexer.index_files(Path(args.path),int(args.docs))
     indexer.cargar_indice()
 
 
