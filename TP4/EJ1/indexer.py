@@ -1,9 +1,7 @@
 from bs4 import BeautifulSoup
 from pathlib import Path
-from tokenicer import TextProcessor
-import os
+from TP4.EJ1.tokenicer import TextProcessor
 import argparse
-import pprint
 
 class Indexer:
     def __init__(self):
@@ -50,6 +48,9 @@ class Indexer:
     def cargar_indice(self):
         self.textProcessor.setVocabulary()
         self.textProcessor.loadIndex()
+
+    def searchTerm(self, term: str) -> list:
+        return self.textProcessor.searchTerm(term)
 
 
 def main():
