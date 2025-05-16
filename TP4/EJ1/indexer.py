@@ -8,7 +8,7 @@ class Indexer:
             self.n_iterations = 0
             self.file_index = 0
             self.textProcessor = TextProcessor() 
-            self.nDdocsToDisc = 0
+            self.documentsCount = 0
             self.path = ""
 
     def directory_dfs(self, path: Path) -> None:

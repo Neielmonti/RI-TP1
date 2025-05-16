@@ -11,7 +11,7 @@ class QueryProcessor:
         nltk.download("stopwords")
         self.stopwords = set(stopwords.words("english"))
 
-    def process_text(self, text: str):
+    def process_query(self, text: str):
         output = []
         sorted_words = self.sort_words(text)
         i = 0
