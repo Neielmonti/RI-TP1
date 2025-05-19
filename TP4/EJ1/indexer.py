@@ -8,7 +8,6 @@ class Indexer:
             self.n_iterations = 0
             self.file_index = 0
             self.textProcessor = TextProcessor() 
-            self.documentsCount = 0
             self.path = ""
 
     def directory_dfs(self, path: Path) -> None:
@@ -45,9 +44,15 @@ class Indexer:
             self.textProcessor.serializar()
             self.n_iterations = 0
 
+
+    def getAllDocIDs(self) -> None: 
+        return list(range(self.file_index + 1))
+
+
     def cargar_indice(self):
         self.textProcessor.setVocabulary()
         self.textProcessor.loadIndex()
+
 
     def searchTerm(self, term: str) -> list:
         return self.textProcessor.searchTerm(term)

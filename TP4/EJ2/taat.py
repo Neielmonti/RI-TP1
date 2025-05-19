@@ -3,6 +3,7 @@ from TP4.EJ2.queryProcessor import QueryProcessor
 from pathlib import Path
 import argparse
 import math
+import boolean
 
 class TaatRetriever:
     def __init__(self, path: Path, nDocsToDisc: int):
@@ -10,6 +11,7 @@ class TaatRetriever:
         self.queryProcessor = QueryProcessor()
         self.indexer.index_files(path,nDocsToDisc)
         self.indexer.cargar_indice()
+        self.algebra = boolean.BooleanAlgebra()
 
     def searchTerm(self, term: str) -> list:
         return self.indexer.searchTerm(term)
@@ -38,6 +40,40 @@ class TaatRetriever:
         sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
         return sorted_scores
     
+    def getQueryRanking(self, query: str) -> None:
+        expression = self.algebra.parse(query, simplify=False)
+        docs = self.analyzeBooleanExpression(expression)
+        print(f"----------------------Resultados para la query {query}: ")
+        print(docs)
+        return docs
+
+
+    def analyzeBooleanExpression(self, expression):
+        # Si es un átomo (operando)
+        if isinstance(expression, boolean.boolean.Symbol):
+            term_postings = self.indexer.searchTerm(str(expression))
+            docID_only = [t[0] for t in term_postings]
+            return set(docID_only)
+
+        # Si es una operación NOT
+        elif isinstance(expression, boolean.boolean.NOT):
+            all_docs = set(self.indexer.getAllDocIDs())
+            term_docs = self.analyzeBooleanExpression(expression.args[0])
+            return all_docs - term_docs
+
+        # Si es una operación AND
+        elif isinstance(expression, boolean.boolean.AND):
+            # Intersección de todos los operandos
+            return set.intersection(*[self.analyzeBooleanExpression(arg) for arg in expression.args])
+
+        # Si es una operación OR
+        elif isinstance(expression, boolean.boolean.OR):
+            # Unión de todos los operandos
+            return set.union(*[self.analyzeBooleanExpression(arg) for arg in expression.args])
+
+        # Si no es un caso conocido (seguridad)
+        raise ValueError("Operador desconocido en expresión booleana.")
+
 
 def main():
     parser = argparse.ArgumentParser(description="Indexador de documentos")
@@ -46,6 +82,10 @@ def main():
     args = parser.parse_args()
 
     taat = TaatRetriever(Path(args.path),int(args.docs))
+
+    while True:
+        query = input("Ingrese una query en formato booleano: ")
+        taat.getQueryRanking(query)
 
 
 if __name__ == "__main__":

@@ -188,10 +188,16 @@ class TextProcessor:
             # Serializar el vocabulario
             pickle.dump(vocab, v_file)
 
-    def searchTerm(self, term: str) -> None:
-        offset, df = self.index[term]
+    def searchTerm(self, term: str) -> list:
+        term_info = self.index.get(term)
+        if not term_info:
+            return []
+        
+        offset, df = term_info
+        
         if not offset:
             return []
+        
         postings = []
         with open(self.PATH_POSTINGS, "rb") as p_file:
             p_file.seek(offset)
