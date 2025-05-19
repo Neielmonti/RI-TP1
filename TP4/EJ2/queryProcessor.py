@@ -27,6 +27,7 @@ class QueryProcessor:
             if word not in self.stopwords:
                 output.append((word, term_count))
             i += 1
+        return output
 
 
     def sort_words(self, text):
