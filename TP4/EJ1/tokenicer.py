@@ -1,9 +1,7 @@
 import re
 import platform
-import heapq
 import tempfile
 import subprocess
-from collections import defaultdict
 import nltk
 from nltk.corpus import stopwords
 import struct
@@ -12,6 +10,7 @@ import heapq
 from collections import defaultdict
 import pprint
 import os
+from pathlib import Path
 
 class TextProcessor:
     def __init__(self):
@@ -23,7 +22,7 @@ class TextProcessor:
             )
     
         self.epoch = 0
-        self.PATH_CHUNKS = "chunks/chunk"
+        self.PATH_CHUNKS = Path("chunks") / "chunk"
         self.PATH_VOCAB = "vocabulary.bin"
         self.PATH_POSTINGS = "postings.bin"
         self.index = {}
@@ -105,7 +104,9 @@ class TextProcessor:
 
 
     def serializar(self):
-        chunk_file = self.PATH_CHUNKS + str(self.epoch) + ".bin"
+        chunk_file = self.PATH_CHUNKS.parent / f"{self.PATH_CHUNKS.stem}{self.epoch}.bin"
+
+        chunk_file.parent.mkdir(parents=True, exist_ok=True)
 
         print(f"analizando epoca {self.epoch}: ")
 
@@ -129,7 +130,7 @@ class TextProcessor:
         postings_lists = [[] for _ in range(len(self.terms))]
 
         for i in range(self.epoch):
-            chunk_file = self.PATH_CHUNKS + str(i) + ".bin"
+            chunk_file = self.PATH_CHUNKS.parent / f"{self.PATH_CHUNKS.stem}{self.epoch}.bin"
         
             with open(chunk_file, "rb") as c_file:
                 while True:
@@ -153,14 +154,14 @@ class TextProcessor:
                 postings_list = []
 
                 for e in range(self.epoch):
-                    chunk_file = self.PATH_CHUNKS + str(e) + ".bin"
-                    if not os.path.exists(chunk_file):
-                        print("[ERROR]: Hay archivos de chunk faltantes")
+                    chunk_file = self.PATH_CHUNKS.parent / f"{self.PATH_CHUNKS.stem}{e}.bin"
+                    if not chunk_file.exists():
+                        print(f"[ERROR]: Archivo de chunk faltante: {chunk_file}")
                         return
                 
                 # Recorro todos los chunks para este término
                 for epoch in range(self.epoch):
-                    chunk_file = self.PATH_CHUNKS + str(epoch) + ".bin"
+                    chunk_file = self.PATH_CHUNKS.parent / f"{self.PATH_CHUNKS.stem}{epoch}.bin"
                     with open(chunk_file, "rb") as c_file:
                         while True:
                             data = c_file.read(12)
