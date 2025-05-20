@@ -29,7 +29,6 @@ class TextProcessor:
 
         self.terms = []
 
-
     def process_text(self, text: str, docID: str):
         sorted_words = self.sort_words(text)
 
@@ -205,6 +204,12 @@ class TextProcessor:
                 docID, freq = struct.unpack("II", p_file.read(8))
                 postings.append((docID, freq))
         return postings
+    
+    def termIsInVocab(self, term: str) -> bool:
+        term_info = self.index.get(term)
+        if term_info:
+            return True
+        else: return False
 
     
     def loadIndex(self):

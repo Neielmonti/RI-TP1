@@ -49,13 +49,18 @@ class Indexer:
         return list(range(self.file_index + 1))
 
 
-    def cargar_indice(self):
-        self.textProcessor.setVocabulary()
+    def cargar_indice(self, loadIndexFromDisk: bool = False):
+        if not loadIndexFromDisk:
+            self.textProcessor.setVocabulary()
         self.textProcessor.loadIndex()
 
 
     def searchTerm(self, term: str) -> list:
         return self.textProcessor.searchTerm(term)
+    
+    def termIsInVocab(self, term: str) -> bool:
+        return self.textProcessor.termIsInVocab(term)
+
 
 
 def main():

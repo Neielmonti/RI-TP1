@@ -6,11 +6,11 @@ import math
 import boolean
 
 class TaatRetriever:
-    def __init__(self, path: Path, nDocsToDisc: int):
+    def __init__(self, path: Path, nDocsToDisc: int, loadIndexFromDisk: bool = False):
         self.indexer = Indexer()
         self.queryProcessor = QueryProcessor()
         self.indexer.index_files(path,nDocsToDisc)
-        self.indexer.cargar_indice()
+        self.indexer.cargar_indice(loadIndexFromDisk)
         self.algebra = boolean.BooleanAlgebra()
 
     def searchTerm(self, term: str) -> list:
@@ -43,7 +43,7 @@ class TaatRetriever:
     def getQueryRanking(self, query: str) -> None:
         expression = self.algebra.parse(query, simplify=False)
         docs = self.analyzeBooleanExpression(expression)
-        print(f"----------------------Resultados para la query {query}: ")
+        print(f"Retrieved documens for '{query}': ")
         print(docs)
         return docs
 
@@ -74,6 +74,8 @@ class TaatRetriever:
         # Si no es un caso conocido (seguridad)
         raise ValueError("Operador desconocido en expresión booleana.")
 
+    def termIsInVocab(self, term: str) -> bool:
+        return self.indexer.termIsInVocab(term)
 
 def main():
     parser = argparse.ArgumentParser(description="Indexador de documentos")
