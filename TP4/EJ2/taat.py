@@ -12,6 +12,7 @@ class TaatRetriever:
 
         if not loadIndexFromDisk:
             self.indexer.index_directory(path, nDocsToDisc)
+            self.indexer.build_vocabulary()
         self.indexer.load_index()
 
         self.algebra = boolean.BooleanAlgebra()
