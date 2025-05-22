@@ -7,7 +7,7 @@ import os
 from TP4.EJ1.tokenicer import TextProcessor
 
 
-class Indexer:
+class Indexer2:
     def __init__(self):
         self.text_processor = TextProcessor()
         self.terms = []
@@ -21,10 +21,6 @@ class Indexer:
         self.PATH_POSTINGS = "postings.bin"
         self.index = {}
         self.doc_count = 0
-
-    def getAllDocsID(self):
-        documents = list(range(self.doc_count))
-        return [(docID, 1, 0) for docID in documents]
 
     def _add_document(self, doc_id, text):
         term_freqs = self.text_processor.process(text)
@@ -91,10 +87,18 @@ class Indexer:
 
                 postings.sort()
                 df = len(postings)
-                for doc_id, freq in postings:
-                    p_file.write(struct.pack("II", doc_id, freq))
+                skip_interval = int(df**0.5) if df > 0 else 0
+
+                for i, (doc_id, freq) in enumerate(postings):
+                    if skip_interval > 0 and (i % skip_interval == 0) and (i + skip_interval < df):
+                        skip_to = i + skip_interval
+                    else:
+                        skip_to = 0
+
+                    p_file.write(struct.pack("III", doc_id, freq, skip_to))
+
                 vocab[term] = (offset, df)
-                offset += df * 8
+                offset += df * 12
 
             pickle.dump(vocab, v_file)
 
@@ -113,8 +117,8 @@ class Indexer:
         with open(self.PATH_POSTINGS, "rb") as f:
             f.seek(offset)
             for _ in range(df):
-                doc_id, freq = struct.unpack("II", f.read(8))
-                postings.append((doc_id, freq))
+                doc_id, freq, skip_to = struct.unpack("III", f.read(12))
+                postings.append((doc_id, freq, skip_to))
         return postings
 
 
@@ -125,7 +129,7 @@ def main():
     parser.add_argument("docs", type=int, help="Documentos por chunk (serialización)")
     args = parser.parse_args()
 
-    indexer = Indexer()
+    indexer = Indexer2()
     indexer.index_directory(Path(args.path), args.docs)
     indexer.build_vocabulary()
     indexer.load_index()

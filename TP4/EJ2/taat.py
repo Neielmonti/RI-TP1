@@ -36,6 +36,8 @@ class TaatRetriever:
             idf = n_docs / df
 
             for docID, d_freq in postings_list:
+                if d_freq <= 0 or q_freq <= 0 or idf <= 1:
+                    continue
                 weighted_freq = ((1 + math.log(d_freq, 2)) / math.log(idf, 2)) * (1 + math.log(q_freq, 2))
                 scores[docID] = scores.get(docID, 0) + weighted_freq
 
@@ -55,9 +57,11 @@ class TaatRetriever:
             return set([doc_id for doc_id, _ in term_postings])
 
         elif isinstance(expression, boolean.boolean.NOT):
-            all_docs = set(self.indexer.get_all_doc_ids())
-            term_docs = self.analyzeBooleanExpression(expression.args[0])
-            return all_docs - term_docs
+            all_docs = set(self.indexer.getAllDocsID())
+            all_doc_ids = {docID for docID, _, _ in all_docs}
+            term_doc = self.analyzeBooleanExpression(expression.args[0])
+            
+            return all_doc_ids - term_doc
 
         elif isinstance(expression, boolean.boolean.AND):
             return set.intersection(*[self.analyzeBooleanExpression(arg) for arg in expression.args])
