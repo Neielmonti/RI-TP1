@@ -1,3 +1,4 @@
+import time
 from bs4 import BeautifulSoup
 from pathlib import Path
 from collections import defaultdict
@@ -46,6 +47,8 @@ class Indexer:
         chunk_file = self.PATH_CHUNKS.parent / f"{self.PATH_CHUNKS.stem}{self.epoch}.bin"
         chunk_file.parent.mkdir(parents=True, exist_ok=True)
 
+        print(f" ----- [Serializando chunk {self.epoch}]")
+
         with open(chunk_file, "wb") as f:
             for term_id, data in sorted(self.json_data.items()):
                 for doc_id, freq in data["postings"].items():
@@ -61,6 +64,8 @@ class Indexer:
 
         if docs_per_chunk == 0:
             docs_per_chunk = int(self.doc_count * 0.1)
+
+        start_time = time.time()
 
         for file in path.rglob("*"):
             if file.is_file():
@@ -83,6 +88,9 @@ class Indexer:
         if self.n_iterations > 0:
             self._serialize_chunk()
 
+        print(f" Tiempo de indexado: {time.time() - start_time} s.")
+
+
     def build_vocabulary(self):
         print(f"\nConstruyendo índice a partir de los chunks.\n")
 
@@ -95,6 +103,9 @@ class Indexer:
         # pero por cuestiones de tiempo de ejecucion decidi hacerlo de esta manera.
         # (Caso contrario, hubiera recorrido cada chunk en busqueda de un term_id especifico, guardar su posting list,
         # y pasar al siguiente termino).
+
+        start_time = time.time()
+
         for epoch in range(self.epoch):
             chunk_file = self.PATH_CHUNKS.parent / f"{self.PATH_CHUNKS.stem}{epoch}.bin"
             with open(chunk_file, "rb") as c_file:
@@ -104,6 +115,8 @@ class Indexer:
                         break
                     term_id, doc_id, freq = struct.unpack("III", data)
                     postings_dict[term_id].append((doc_id, freq))
+
+        print(f" Tiempo de merge: {time.time() - start_time} s.")
 
         total_terms = len(self.terms)
         step = max(1, total_terms // 10)

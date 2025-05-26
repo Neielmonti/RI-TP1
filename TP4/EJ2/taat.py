@@ -44,17 +44,28 @@ class TaatRetriever:
 
         sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
         return sorted_scores
+    
 
     def getQueryRanking(self, query: str) -> None:
-        expression = self.algebra.parse(query, simplify=False)
-        docs = self.analyzeBooleanExpression(expression)
-        print(f"\nDocumentos recuperados para '{query}':")
+
+        query = input("Ingrese una query (booleana o normal): ")
+        if any(op in query.upper() for op in ["AND", "OR", "NOT"]):
+            expression = self.algebra.parse(query, simplify=False)
+            docs = self.analyzeBooleanExpression(expression)
+            print(f"\nDocumentos recuperados para '{query}':")
+            for docname, docID, freq in docs:
+                print(f"-- {docname} : {docID}")
+    
+        else:
+            docs = self.searchQuery(query)
+            print(f"Top resultados para '{query}':")
+            for doc_id, score in docs[:10]:
+                print(f"Doc: {doc_id} - Score: {score:.4f}")
+        
         if not docs:
             print("-- NO DOCUMENTS FOUND")
-            return
-        for docname, docID, freq in docs:
-            print(f"-- {docname} : {docID}")
         return docs
+    
 
     def analyzeBooleanExpression(self, expression):
         if isinstance(expression, boolean.boolean.Symbol):
@@ -79,9 +90,11 @@ class TaatRetriever:
             return set.union(*sets)
 
         raise ValueError("Operador desconocido en expresión booleana.")
+    
 
     def termIsInVocab(self, term: str) -> bool:
         return self.indexer.isTermInVocab(term)
+
 
 def main():
     parser = argparse.ArgumentParser(description="Indexador y buscador booleano y ponderado")

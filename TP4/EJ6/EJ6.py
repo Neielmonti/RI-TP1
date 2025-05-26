@@ -1,12 +1,10 @@
 
 import time
-from TP4.EJ1.indexerEJ6 import IndexerEJ6
-from TP4.EJ1.indexerEJ6 import IndexerEJ6
+from TP4.EJ6.indexerEJ6 import IndexerEJ6
 from TP4.EJ2.taat import TaatRetriever
 from TP4.EJ4.daat import DaatRetriever
 from pathlib import Path
 import argparse
-from TP4.EJ1.indexerEJ6 import IndexerEJ6
 
 def main():
     parser = argparse.ArgumentParser(description="Indexador y buscador booleano y ponderado")

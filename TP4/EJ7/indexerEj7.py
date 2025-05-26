@@ -3,14 +3,14 @@ from pathlib import Path
 from collections import defaultdict
 import struct
 import pickle
+import time
 import os
 from bitarray import bitarray
-from bitarray.util import ba2int
 from TP4.EJ1.tokenicer import TextProcessor
 
 
 class Indexer:
-    def __init__(self):
+    def __init__(self, useDgaps = False):
         self.text_processor = TextProcessor()
         self.terms = []
         self.term_ids = {}
@@ -26,6 +26,8 @@ class Indexer:
         self.docnames = {}
         self.index = {}
         self.doc_count = 0
+        self.compression_time = 0
+        self.useDgaps = useDgaps
 
     def getAllDocsID(self):
         result = []
@@ -86,7 +88,7 @@ class Indexer:
         if self.n_iterations > 0:
             self._serialize_chunk()
 
-    def build_vocabulary(self, useDGaps: bool = False):
+    def build_vocabulary(self):
         print(f"\nConstruyendo índice a partir de los chunks.\n")
 
         offset_docIds = 0
@@ -114,11 +116,14 @@ class Indexer:
 
         # Escribir postings ordenados y armar vocabulario
         with open(self.PATH_VOCAB, "wb") as v_file, open(self.PATH_POSTINGS_DOCS, "wb") as pd_file, open(self.PATH_POSTINGS_FREQS, "wb") as pf_file:
+
+            time_accum = 0
+
             for term_id, term in enumerate(self.terms):
                 postings = postings_dict.get(term_id, [])
                 postings.sort()  # Ordenar por doc_id
 
-                if useDGaps:
+                if self.useDgaps:
                     save_list = self.getDGaps(postings)
                 else:
                     save_list = postings
@@ -129,9 +134,13 @@ class Indexer:
                 gamma = 0
 
                 for doc_id, freq in save_list:
-                    vl += self.saveAsVariableLength(doc_id, pd_file)
-                    gamma += self.saveAsGamma(freq, pf_file)
-                    
+                    vl_item, vl_time = self.saveAsVariableLength(doc_id, pd_file)
+                    vl += vl_item
+                    gamma_item, gamma_time = self.saveAsGamma(freq, pf_file)
+                    gamma += gamma_item
+                
+                time_accum += (vl_time + gamma_time)
+
                 vocab[term] = (df, offset_docIds, offset_freqs)
 
                 offset_docIds += vl
@@ -141,6 +150,7 @@ class Indexer:
                     percent = ((term_id + 1) * 100) // total_terms
                     print(f" --- {percent}% de los términos almacenados.")
 
+            self.compression_time = time_accum
             pickle.dump(vocab, v_file)
             print(f"[DEBUG] Guardado vocabulario con {len(vocab)} términos.")
         
@@ -156,6 +166,7 @@ class Indexer:
         return dgaps
     
     def saveAsVariableLength(self, doc_id: int, file):
+        start_time = time.time()
         parts = []
 
         # Cortamos el número en grupos de 7 bits, desde el final
@@ -175,9 +186,11 @@ class Indexer:
                 byte |= 0b10000000
             file.write(struct.pack("B", byte))
 
-        return len(parts) * 8  # cada byte = 8 bits
+        return len(parts) * 8, time.time() - start_time
 
     def saveAsGamma(self, freq: int, file):
+        start_time = time.time()
+
         bin_str = bin(freq)[2:]
         length = len(bin_str)
         unary = '1' * (length - 1) + '0'
@@ -194,7 +207,7 @@ class Indexer:
             byte = int(byte_str, 2)
             file.write(struct.pack("B", byte))
 
-        return len(gamma_code)  # cantidad de bits codificados
+        return len(gamma_code), time.time() - start_time  # cantidad de bits codificados
 
     def load_index(self):
         print(f"\nCargando indice desde el archivo a la memora.\n")
@@ -211,17 +224,9 @@ class Indexer:
 
 
     def read_varlength_code(self, file, start_bit_offset):
-        byte_offset = start_bit_offset // 8
-        bit_offset = start_bit_offset % 8
+        start_time = time.time()
 
-        file.seek(byte_offset)
-        raw_bytes = file.read(10)
-
-        # Convertir los bytes a bits y aplicar el desplazamiento de bit inicial
-        bits = bitarray()
-        bits.frombytes(raw_bytes)
-        bits = bits[bit_offset:]  # eliminar bits previos
-
+        bits = self.getBitsFromFile(start_bit_offset, file, 10)
         result = 0
         bit_index = 0
 
@@ -240,22 +245,16 @@ class Indexer:
             if msb != 0:
                 break
 
-        return result, bit_index
+        return result, bit_index, bits, time.time() - start_time
 
 
     def read_gamma_code(self, file, start_bit_offset):
-        byte_offset = start_bit_offset // 8
-        bit_offset = start_bit_offset % 8
+        start_time = time.time()
 
-        file.seek(byte_offset)
-        data = file.read(10)  # leer suficientes bytes
-
-        bits = bitarray()
-        bits.frombytes(data)
-        bits = bits[bit_offset:]  # ajustar offset en bits
-
+        bits = self.getBitsFromFile(start_bit_offset, file, 10)
         unary_count = 0
         i = 0
+
         while bits[i]:
             unary_count += 1
             i += 1
@@ -269,41 +268,64 @@ class Indexer:
         bin_str = '1' + ''.join('1' if b else '0' for b in binary_rest)
         value = int(bin_str, 2)
 
-        return value, i
+        return value, i, bits, time.time() - start_time
+    
+
+    def getBitsFromFile(self, bits_offset, file, safetyBytes):
+        bytes_offset = bits_offset // 8
+        aux_bits_offset = bits_offset % 8
+
+        file.seek(bytes_offset)
+        data = file.read(safetyBytes)  # leer suficientes bytes
+
+        bits = bitarray()
+        bits.frombytes(data)
+        bits = bits[aux_bits_offset:]
+
+        return bits
 
 
-    def search(self, term, useDGaps: bool = False):
+    def search(self, term):
         if term not in self.index:
             return []
 
         df, offset_docIds_bits, offset_freqs_bits = self.index[term]
 
         postings = []
+
+        time_accum = 0
+
         with open(self.PATH_POSTINGS_DOCS, "rb") as pd_file, open(self.PATH_POSTINGS_FREQS, "rb") as pf_file, open(self.PATH_DOCNAMES, "rb") as d_file:
             bit_offset_doc = offset_docIds_bits
             bit_offset_freq = offset_freqs_bits
 
-            for i in range(df):
-                doc_gap, bits_read_doc = self.read_varlength_code(pd_file, bit_offset_doc)
-                bit_offset_doc += bits_read_doc
+            bits_docs = bitarray()
+            bits_freqs = bitarray()
 
-                freq, bits_read_freq = self.read_gamma_code(pf_file, bit_offset_freq)
+            d_file.seek(0)
+            docnames = pickle.load(d_file)
+
+            for i in range(df):
+                doc_gap, bits_read_doc, bits_doc, doc_time = self.read_varlength_code(pd_file, bit_offset_doc)
+                bit_offset_doc += bits_read_doc
+                bits_docs.extend(bits_doc)
+
+                freq, bits_read_freq, bits_freq, freq_time = self.read_gamma_code(pf_file, bit_offset_freq)
                 bit_offset_freq += bits_read_freq
+                bits_freqs.extend(bits_freq)
 
                 # Acumular docIDs a partir de gaps (si es que se usaron Dgaps) 
-                if useDGaps and postings:
+                if self.useDgaps and postings:
                     doc_id = postings[i - 1][1] + doc_gap
                 else:
                     doc_id = doc_gap
 
                 # obtener nombre documento
-                d_file.seek(0)
-                docnames = pickle.load(d_file)
                 doc_name = docnames.get(str(doc_id), None)
-
                 postings.append((doc_name, doc_id, freq))
+                time_accum += doc_time + freq_time
 
-        return postings
+        return postings, bits_docs, bits_freqs, time_accum / df
     
     def printTermPostingList(self, term):
         print("\n")
@@ -311,13 +333,24 @@ class Indexer:
             print("El termino no forma parte del vocabulario")
             return
         print(f"Postings del termino '{term}'\n")
-        postings = self.search(term)
+        postings, bits_docs, bits_freqs, _ = self.search(term)
+        print(f"Bits de la lista de docs: \n{bits_docs.to01()} \n\nBits de la lista de frecuencias: \n{bits_freqs.to01()} \n\nPostings descomprimidas:\n")
         for posting in postings:
-            print(f"{posting[0]}:{posting[1]}:{posting[2]}")
-        print()
+            print(f" -- {posting[0]}:{posting[1]}:{posting[2]}")
     
     def isTermInVocab(self, term):
         return term in self.index
+    
+    def getIndexDecompressionTime(self):
+        time_accum = 0
+        for term in list(self.index.keys()):
+            _, _, _, d_time = self.search(term)
+            time_accum += d_time
+        return time_accum
+    
+    def showCompressAndDecompressTimes(self):
+        print(f"\nTiempo de compresion del indice: {self.compression_time} s.\nTiempo de descompresion del indice: {self.getIndexDecompressionTime()} s.\n\n")
+
 
 
 def main():
@@ -325,12 +358,14 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("path", type=str, help="Directorio de documentos HTML")
     parser.add_argument("docs", type=int, help="Documentos por chunk (serialización)")
+    parser.add_argument("--dgaps", action="store_true", help="Usar D-Gaps")
     args = parser.parse_args()
 
-    indexer = Indexer()
+    indexer = Indexer(args.dgaps)
     indexer.index_directory(Path(args.path), args.docs)
     indexer.build_vocabulary()
     indexer.load_index()
+    indexer.showCompressAndDecompressTimes()
 
     while True:
         query = input("\nBuscar término (enter para salir): ").strip().lower()
