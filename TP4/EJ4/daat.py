@@ -5,7 +5,7 @@ import argparse
 import math
 import boolean
 
-class TaatRetriever:
+class DaatRetriever:
     def __init__(self, path: Path, nDocsToDisc: int, loadIndexFromDisk: bool = False, indexer = Indexer()):
         self.indexer = indexer
         self.queryProcessor = QueryProcessor()
@@ -20,8 +20,15 @@ class TaatRetriever:
     def searchTerm(self, term: str) -> list:
         return self.indexer.search(term)
 
+    def get_by_docID(self, postingList, x):
+        for item in postingList:
+            if item[0] == x:
+                return item
+        return None
+    
     def searchQuery(self, query: str) -> list:
         query_terms = self.queryProcessor.process_query(query)
+
         scores = {}
         term_results = []
 
@@ -29,18 +36,27 @@ class TaatRetriever:
             postings_list = self.indexer.search(q_term)
             term_results.append((q_term, q_freq, postings_list))
 
-        for term, q_freq, postings_list in term_results:
-            df = len(postings_list)
-            n_docs = self.indexer.doc_count
-            if df == 0:
-                continue
-            idf = n_docs / df
+        aux = self.indexer.getAllDocsID()
+        all_docs = [doc_id for _, doc_id in aux]
 
-            for docName, docID, d_freq in postings_list:
-                weighted_freq = 0
-                if not (d_freq <= 0 or q_freq <= 0 or idf <= 0):
-                    weighted_freq = ((1 + math.log(d_freq, 2)) * math.log(idf, 2)) * (1 + math.log(q_freq, 2))
-                scores[docID] = scores.get(docID, 0) + weighted_freq
+        for docID in all_docs:
+            for term, q_freq, postingList in term_results:
+
+                df = len(postings_list)
+                n_docs = self.indexer.doc_count
+                if df == 0:
+                    continue
+                idf = n_docs / df
+
+                docActual = self.get_by_docID(postingList, docID)
+
+                if docActual:
+                    docname, doc, d_freq = docActual
+                    weighted_freq = 0
+
+                    if not (d_freq <= 0 or q_freq <= 0 or idf <= 0):
+                        weighted_freq = ((1 + math.log(d_freq, 2)) * math.log(idf, 2)) * (1 + math.log(q_freq, 2))
+                    scores[docID] = scores.get(docID, 0) + weighted_freq
 
         sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
         return sorted_scores
@@ -90,11 +106,11 @@ def main():
     parser.add_argument("--load", action="store_true", help="Cargar índice desde disco en lugar de indexar de nuevo")
     args = parser.parse_args()
 
-    taat = TaatRetriever(Path(args.path), args.docs, loadIndexFromDisk=args.load)
+    daat = DaatRetriever(Path(args.path), args.docs, loadIndexFromDisk=args.load)
 
     while True:
         query = input("Ingrese una query booleana: ")
-        taat.getQueryRanking(query)
+        daat.getQueryRanking(query)
         """
         query = input("Ingrese una query (booleana o normal): ")
         if any(op in query.upper() for op in ["AND", "OR", "NOT"]):

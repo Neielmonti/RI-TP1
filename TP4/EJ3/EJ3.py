@@ -32,37 +32,33 @@ class EJ3:
                 line = q_file.readline()
 
         if self.q2_count > 0:
-            print(f"Tiempo promedio de ejecucionde queries 2: {self.q2_accum / self.q2_count} segundos")
+            print(f"Tiempo promedio de ejecucionde queries [ 2 TERMS ]: {self.q2_accum / self.q2_count} segundos")
         if self.q3_count > 0:
-            print(f"Tiempo promedio de ejecucionde queries 3: {self.q3_accum / self.q3_count} segundos")
+            print(f"Tiempo promedio de ejecucionde queries [ 3 TERMS ]: {self.q3_accum / self.q3_count} segundos")
 
 
     def process2Terms(self, terms: list):
+        print("\n-[ 2 TERMS ]-----------------------------------------")
         self.q2_count += 1
         start = time.time()
-        print("t1 AND t2")
         self.taatRetriever.getQueryRanking(f"{terms[0]} AND {terms[1]}")
-        print("t1 OR t2")
         self.taatRetriever.getQueryRanking(f"{terms[0]} OR {terms[1]}")
-        print("t1 NOT t2")
         self.taatRetriever.getQueryRanking(f"{terms[0]} AND NOT {terms[1]}")
         end = time.time()
         self.q2_accum += end - start
-        print(f"Tiempo de ejecución: {end - start:.4f} segundos\n")
+        print(f"\nTiempo de ejecución: {end - start:.4f} segundos\n")
 
 
     def process3Terms(self, terms: list):
+        print("\n-[ 3 TERMS ]-----------------------------------------")
         self.q3_count += 1
         start = time.time()
-        print("t1 AND t2 AND t3")
         self.taatRetriever.getQueryRanking(f"{terms[0]} AND {terms[1]} AND {terms[2]}")
-        print("(t1 OR t2) NOT t3")
         self.taatRetriever.getQueryRanking(f"({terms[0]} OR {terms[1]}) AND {terms[2]}")
-        print("(t1 AND t2) OR t3")
         self.taatRetriever.getQueryRanking(f"({terms[0]} AND {terms[1]}) OR {terms[2]}")
         end = time.time()
         self.q3_accum += end - start
-        print(f"Tiempo de ejecución: {end - start:.4f} segundos\n")
+        print(f"\nTiempo de ejecución: {end - start:.4f} segundos\n")
         
 
 

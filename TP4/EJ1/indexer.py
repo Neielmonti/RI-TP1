@@ -19,14 +19,18 @@ class Indexer:
         self.PATH_CHUNKS = Path("chunks") / "chunk"
         self.PATH_VOCAB = "vocabulary.bin"
         self.PATH_POSTINGS = "postings.bin"
+        self.PATH_DOCNAMES = "docnames.bin"
+        self.docnames = {}
         self.index = {}
         self.doc_count = 0
 
     def getAllDocsID(self):
-        documents = list(range(self.doc_count))
-        return [(docID, 1, 0) for docID in documents]
+        result = []
+        for docId, docname in enumerate(self.docnames):
+            result.append((docname, docId))
+        return result
 
-    def _add_document(self, doc_id, text):
+    def _add_document(self, doc_id, text, docname):
         term_freqs = self.text_processor.process(text)
         for term, freq in term_freqs.items():
             if term not in self.term_ids:
@@ -36,6 +40,7 @@ class Indexer:
             else:
                 term_id = self.term_ids[term]
             self.json_data[term_id]["postings"][doc_id] = freq
+        self.docnames[doc_id] = docname
 
     def _serialize_chunk(self):
         chunk_file = self.PATH_CHUNKS.parent / f"{self.PATH_CHUNKS.stem}{self.epoch}.bin"
@@ -49,9 +54,13 @@ class Indexer:
         self.json_data.clear()
         self.epoch += 1
 
-    def index_directory(self, path: Path, docs_per_chunk=250):
+    def index_directory(self, path: Path, docs_per_chunk=0):
+        print(f"\nRecorriendo y tokenizando documentos.\n")
         doc_files = list(path.rglob("*.html"))
         self.doc_count = len(doc_files)
+
+        if docs_per_chunk == 0:
+            docs_per_chunk = int(self.doc_count * 0.1)
 
         for file in path.rglob("*"):
             if file.is_file():
@@ -60,62 +69,110 @@ class Indexer:
                 soup = BeautifulSoup(html, "html.parser")
                 for tag in soup(["script", "style"]): tag.extract()
                 text = soup.get_text()
-                self._add_document(str(self.file_index), text)
+                self._add_document(str(self.file_index), text, file.stem)
                 self.file_index += 1
                 self.n_iterations += 1
 
                 if self.n_iterations >= docs_per_chunk:
                     self._serialize_chunk()
                     self.n_iterations = 0
+                
+                if (self.file_index % 250) == 0:
+                    print(f" --- {self.file_index} documentos analizados.")
 
         if self.n_iterations > 0:
             self._serialize_chunk()
 
     def build_vocabulary(self):
+        print(f"\nConstruyendo índice a partir de los chunks.\n")
+
         offset = 0
         vocab = {}
+        postings_dict = defaultdict(list)
 
+        # Aca leo todos los chunks UNA SOLA VEZ y agrupo por term_id
+        # Realmente, esto trae el indice entero a memoria, venciendo el sentido de los chunks,
+        # pero por cuestiones de tiempo de ejecucion decidi hacerlo de esta manera.
+        # (Caso contrario, hubiera recorrido cada chunk en busqueda de un term_id especifico, guardar su posting list,
+        # y pasar al siguiente termino).
+        for epoch in range(self.epoch):
+            chunk_file = self.PATH_CHUNKS.parent / f"{self.PATH_CHUNKS.stem}{epoch}.bin"
+            with open(chunk_file, "rb") as c_file:
+                while True:
+                    data = c_file.read(12)
+                    if not data:
+                        break
+                    term_id, doc_id, freq = struct.unpack("III", data)
+                    postings_dict[term_id].append((doc_id, freq))
+
+        total_terms = len(self.terms)
+        step = max(1, total_terms // 10)
+
+        # Escribir postings ordenados y armar vocabulario
         with open(self.PATH_VOCAB, "wb") as v_file, open(self.PATH_POSTINGS, "wb") as p_file:
             for term_id, term in enumerate(self.terms):
-                postings = []
-                for epoch in range(self.epoch):
-                    chunk_file = self.PATH_CHUNKS.parent / f"{self.PATH_CHUNKS.stem}{epoch}.bin"
-                    with open(chunk_file, "rb") as c_file:
-                        while True:
-                            data = c_file.read(12)
-                            if not data:
-                                break
-                            t_id, doc_id, freq = struct.unpack("III", data)
-                            if t_id == term_id:
-                                postings.append((doc_id, freq))
+                postings = postings_dict.get(term_id, [])
+                postings.sort()  # Ordenar por doc_id
 
-                postings.sort()
                 df = len(postings)
                 for doc_id, freq in postings:
                     p_file.write(struct.pack("II", doc_id, freq))
                 vocab[term] = (offset, df)
                 offset += df * 8
 
+                if (term_id + 1) % step == 0:
+                    percent = ((term_id + 1) * 100) // total_terms
+                    print(f" --- {percent}% de los términos almacenados.")
+
             pickle.dump(vocab, v_file)
+            print(f"[DEBUG] Guardado vocabulario con {len(vocab)} términos.")
+        
+        with open(self.PATH_DOCNAMES, "wb") as d_file:
+            pickle.dump(self.docnames, d_file)
 
     def load_index(self):
+        print(f"\nCargando indice desde el archivo a la memora.\n")
         if not os.path.exists(self.PATH_VOCAB):
             print("[ERROR]: Vocabulario no encontrado.")
             return
         with open(self.PATH_VOCAB, "rb") as v_file:
             self.index = pickle.load(v_file)
+        if not os.path.exists(self.PATH_DOCNAMES):
+            print("[ERROR]: DOCNAMES no encontrados.")
+            return
+        with open(self.PATH_DOCNAMES, "rb") as d_file:
+            self.docnames = pickle.load(d_file)
 
     def search(self, term):
         if term not in self.index:
             return []
         offset, df = self.index[term]
         postings = []
-        with open(self.PATH_POSTINGS, "rb") as f:
+        with open(self.PATH_POSTINGS, "rb") as p_file, open(self.PATH_DOCNAMES, "rb") as d_file:
+            p_file.seek(offset)
+            for _ in range(df):
+                doc_id, freq = struct.unpack("II", p_file.read(8))
+                postings.append((self.docnames[str(doc_id)],doc_id, freq))
+        return postings
+    
+    def printTermPostingList(self, term):
+        if term not in self.index:
+            print("El termino no forma parte del vocabulario")
+            return
+        print(f"Postings del termino '{term}'")
+        offset, df = self.index[term]
+        postings = []
+        with open(self.PATH_POSTINGS, "rb") as f, open(self.PATH_DOCNAMES, "rb") as d_file:
+            self.docnames = pickle.load(d_file)
             f.seek(offset)
             for _ in range(df):
                 doc_id, freq = struct.unpack("II", f.read(8))
-                postings.append((doc_id, freq))
-        return postings
+                postings.append((self.docnames[str(doc_id)],doc_id, freq))
+        for posting in postings:
+            print(f"{posting[0]}:{posting[1]}:{posting[2]}")
+    
+    def isTermInVocab(self, term):
+        return term in self.index
 
 
 def main():
@@ -134,11 +191,7 @@ def main():
         query = input("\nBuscar término (enter para salir): ").strip().lower()
         if not query:
             break
-        postings = indexer.search(query)
-        if postings:
-            print(f"Documentos que contienen '{query}': {postings}")
-        else:
-            print(f"Término '{query}' no encontrado.")
+        postings = indexer.printTermPostingList(query)
 
 
 if __name__ == "__main__":

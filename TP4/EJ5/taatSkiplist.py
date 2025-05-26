@@ -1,4 +1,4 @@
-from TP4.EJ5.indexer2 import Indexer2
+from EJ5.indexerSkiplist import IndexerSkiplist
 from TP4.EJ2.queryProcessor import QueryProcessor
 from pathlib import Path
 import argparse
@@ -6,10 +6,10 @@ import math
 import time
 import boolean
 
-class TaatRetriever2:
+class TaatSkiplistRetriever:
     def __init__(self, path: Path, nDocsToDisc: int, loadIndexFromDisk: bool = False):
         self.PATH_QUERIES = "queries.txt"
-        self.indexer = Indexer2()
+        self.indexer = IndexerSkiplist()
         self.queryProcessor = QueryProcessor()
 
         if not loadIndexFromDisk:
@@ -167,7 +167,7 @@ def main():
     parser.add_argument("--load", action="store_true", help="Cargar índice desde disco en lugar de indexar de nuevo")
     args = parser.parse_args()
 
-    taat = TaatRetriever2(Path(args.path), args.docs, loadIndexFromDisk=args.load)
+    taat = TaatRetrieverSkiplist(Path(args.path), args.docs, loadIndexFromDisk=args.load)
     taat.getQueryRanking("edit AND understood", True)
     taat.queriesTest()
 
