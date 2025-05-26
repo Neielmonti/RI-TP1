@@ -156,20 +156,15 @@ class Indexer:
         return postings
     
     def printTermPostingList(self, term):
+        print("\n")
         if term not in self.index:
             print("El termino no forma parte del vocabulario")
             return
-        print(f"Postings del termino '{term}'")
-        offset, df = self.index[term]
-        postings = []
-        with open(self.PATH_POSTINGS, "rb") as f, open(self.PATH_DOCNAMES, "rb") as d_file:
-            self.docnames = pickle.load(d_file)
-            f.seek(offset)
-            for _ in range(df):
-                doc_id, freq = struct.unpack("II", f.read(8))
-                postings.append((self.docnames[str(doc_id)],doc_id, freq))
+        print(f"Postings del termino '{term}'\n")
+        postings = self.search(term)
         for posting in postings:
             print(f"{posting[0]}:{posting[1]}:{posting[2]}")
+        print()
     
     def isTermInVocab(self, term):
         return term in self.index

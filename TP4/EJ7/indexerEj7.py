@@ -129,12 +129,8 @@ class Indexer:
                 gamma = 0
 
                 for doc_id, freq in save_list:
-                    print()
-                    #print(f"[DEBUG] Guardando termino: {term}, term_id={term_id}, doc_id={doc_id}, freq={freq}")
                     vl += self.saveAsVariableLength(doc_id, pd_file)
-                    print(f"FRECUENCIA REAL: {term}, term_id={term_id}, doc_id={doc_id}, freq={freq}")
                     gamma += self.saveAsGamma(freq, pf_file)
-                    print("\n")
                     
                 vocab[term] = (df, offset_docIds, offset_freqs)
 
@@ -189,10 +185,14 @@ class Indexer:
         rmsb = bin_str[1:]  # quitar el bit más significativo (siempre 1)
         gamma_code = unary + rmsb
 
-        bits = bitarray(gamma_code)
-        bits.tofile(file)
+        while len(gamma_code) % 8 != 0:
+            gamma_code += '0'
 
-        print(f"SAVEASGAMMA: freq: {freq}, gamma_code{gamma_code}")
+        # Escribir byte a byte usando struct
+        for i in range(0, len(gamma_code), 8):
+            byte_str = gamma_code[i:i+8]
+            byte = int(byte_str, 2)
+            file.write(struct.pack("B", byte))
 
         return len(gamma_code)  # cantidad de bits codificados
 
@@ -215,7 +215,7 @@ class Indexer:
         bit_offset = start_bit_offset % 8
 
         file.seek(byte_offset)
-        raw_bytes = file.read(10)  # leer 10 bytes por seguridad
+        raw_bytes = file.read(10)
 
         # Convertir los bytes a bits y aplicar el desplazamiento de bit inicial
         bits = bitarray()
@@ -226,24 +226,19 @@ class Indexer:
         bit_index = 0
 
         while True:
-            # Tomar los siguientes 8 bits (1 byte)
             current_bits = bits[bit_index:bit_index + 8]
-            bits_del_byte = current_bits.to01()  # por ejemplo: '10000101'
+            bits_del_byte = current_bits.to01()
             valor_del_byte = int(bits_del_byte, 2)
 
-            # Extraer el bit más significativo (MSB)
-            msb = valor_del_byte & 0b10000000  # 1 si es último byte
+            # Extraer el MSB
+            msb = valor_del_byte & 0b10000000
 
-            # Extraer los 7 bits de datos
             datos = valor_del_byte & 0b01111111
-
-            # En lugar de usar result << 7, multiplicamos por 128 (2^7)
             result = result * 128 + datos
-
-            bit_index += 8  # avanzar al siguiente byte
+            bit_index += 8
 
             if msb != 0:
-                break  # si el MSB está encendido, se terminó el número
+                break
 
         return result, bit_index
 
@@ -251,16 +246,14 @@ class Indexer:
     def read_gamma_code(self, file, start_bit_offset):
         byte_offset = start_bit_offset // 8
         bit_offset = start_bit_offset % 8
+
         file.seek(byte_offset)
         data = file.read(10)  # leer suficientes bytes
 
         bits = bitarray()
         bits.frombytes(data)
         bits = bits[bit_offset:]  # ajustar offset en bits
-        print(f"GAMMA_DATA1: {bits}")
 
-        # Gamma decoding:
-        # Primero cuenta la cantidad de 1s antes del primer 0 -> length of binary repr
         unary_count = 0
         i = 0
         while bits[i]:
@@ -269,7 +262,6 @@ class Indexer:
         i += 1  # saltar el 0
 
         length = unary_count + 1
-        # leer los length - 1 bits siguientes
         binary_rest = bits[i:i + (length - 1)]
         i += (length - 1)
 
@@ -298,10 +290,6 @@ class Indexer:
                 freq, bits_read_freq = self.read_gamma_code(pf_file, bit_offset_freq)
                 bit_offset_freq += bits_read_freq
 
-                print(f"[DEBUG] Decodificado: freq={freq}, bits_read={bits_read_freq}")
-
-                print(f"[DEBUG] Decodificado: i={i}, doc_gap={doc_gap}, freq={freq}")
-
                 # Acumular docIDs a partir de gaps (si es que se usaron Dgaps) 
                 if useDGaps and postings:
                     doc_id = postings[i - 1][1] + doc_gap
@@ -318,22 +306,15 @@ class Indexer:
         return postings
     
     def printTermPostingList(self, term):
+        print("\n")
         if term not in self.index:
             print("El termino no forma parte del vocabulario")
             return
-        print(f"Postings del termino '{term}'")
-        offset, df = self.index[term]
-        postings = []
-        with open(self.PATH_POSTINGS_DOCS, "rb") as pd_file, open(self.PATH_POSTINGS_FREQS, "rb") as pf_file, open(self.PATH_DOCNAMES, "rb") as d_file:
-            self.docnames = pickle.load(d_file)
-            pd_file.seek(offset)
-            pf_file.seek(offset)
-            for _ in range(df):
-                doc_id, = struct.unpack("I", pd_file.read(4))
-                freq, = struct.unpack("I", pf_file.read(4))
-                postings.append((self.docnames[str(doc_id)],doc_id, freq))
+        print(f"Postings del termino '{term}'\n")
+        postings = self.search(term)
         for posting in postings:
             print(f"{posting[0]}:{posting[1]}:{posting[2]}")
+        print()
     
     def isTermInVocab(self, term):
         return term in self.index
@@ -355,8 +336,7 @@ def main():
         query = input("\nBuscar término (enter para salir): ").strip().lower()
         if not query:
             break
-        postings = indexer.search(query)
-        print(postings)
+        indexer.printTermPostingList(query)
 
 
 if __name__ == "__main__":
