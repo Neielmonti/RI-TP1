@@ -6,7 +6,7 @@ import math
 import boolean
 
 class DaatRetriever:
-    def __init__(self, path: Path, nDocsToDisc: int, loadIndexFromDisk: bool = False, indexer = Indexer()):
+    def __init__(self, path: Path, nDocsToDisc: int, loadIndexFromDisk: bool = False, indexer = Indexer(True)):
         self.indexer = indexer
         self.queryProcessor = QueryProcessor()
 
@@ -22,7 +22,7 @@ class DaatRetriever:
 
     def get_by_docID(self, postingList, x):
         for item in postingList:
-            if item[0] == x:
+            if item[1] == x:
                 return item
         return None
     
@@ -39,37 +39,79 @@ class DaatRetriever:
         aux = self.indexer.getAllDocsID()
         all_docs = [doc_id for _, doc_id in aux]
 
+        docNorms = self.indexer.getDocNorms()
+        n_docs = self.indexer.doc_count
+        query_norm, idf_terms = self.compute_query_norm(term_results, n_docs)
+
         for docID in all_docs:
             for term, q_freq, postingList in term_results:
-
-                df = len(postings_list)
-                n_docs = self.indexer.doc_count
+                df = len(postingList)
                 if df == 0:
                     continue
-                idf = n_docs / df
 
+                # Obtengo la tupla que tiene el docID actual en esta posting list (si es que existe)
                 docActual = self.get_by_docID(postingList, docID)
 
                 if docActual:
-                    docname, doc, d_freq = docActual
-                    weighted_freq = 0
+                    docName, _, d_freq = docActual
+                    idf = idf_terms[term]
+                    
+                    if d_freq <= 0 or q_freq <= 0 or idf <= 0:
+                        continue
 
-                    if not (d_freq <= 0 or q_freq <= 0 or idf <= 0):
-                        weighted_freq = ((1 + math.log(d_freq, 2)) * math.log(idf, 2)) * (1 + math.log(q_freq, 2))
-                    scores[docID] = scores.get(docID, 0) + weighted_freq
+                    tfidf_d = (1 + math.log(d_freq, 2)) * idf
+                    tfidf_q = (1 + math.log(q_freq, 2)) * idf
+                    
+                    if docID in scores:
+                        scores[docID] = (scores[docID][0] + tfidf_d * tfidf_q, docName)
+                    else:
+                        scores[docID] = (tfidf_d * tfidf_q, docName)
+
+        if query_norm > 0:
+            for docID in scores:
+                doc_norm = docNorms[docID]
+
+                if doc_norm > 0:
+                    scores[docID] = (scores[docID][0] / (query_norm * doc_norm) , scores[docID][1])
 
         sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
-        return sorted_scores
 
-    def getQueryRanking(self, query: str) -> None:
-        expression = self.algebra.parse(query, simplify=False)
-        docs = self.analyzeBooleanExpression(expression)
-        print(f"\nDocumentos recuperados para '{query}':")
+        return [(docName, docID, score) for docID, (score, docName) in sorted_scores]
+    
+    def compute_query_norm(self, term_results: list, total_docs: int) -> tuple[float, dict]:
+        query_norm = 0.0
+        idf_terms = {}
+
+        for term, q_freq, postings_list in term_results:
+            df = len(postings_list)
+            if df == 0:
+                continue
+            idf = math.log(total_docs / df, 2)
+            idf_terms[term] = idf
+            tfidf_q = (1 + math.log(q_freq, 2)) * idf
+            query_norm += tfidf_q ** 2
+
+        return math.sqrt(query_norm), idf_terms
+
+    def getQueryRanking(self, query: str, top: int = 10) -> None:
+
+        if any(op in query.upper() for op in ["AND", "OR", "NOT"]):
+            expression = self.algebra.parse(query, simplify=False)
+            docs = self.analyzeBooleanExpression(expression)
+            print(f"\nDocumentos recuperados para '{query}':")
+            for docname, docID, _ in docs:
+                print(f"-- {docname} : {docID}")
+    
+        else:
+            docs = self.searchQuery(query)
+            print(f"\nTop[{top}] resultados para '{query}':")
+            for docname, docID, score in docs[:top]:
+                print(f"-- {docname} : {docID} : {score:.4f}")
+        
         if not docs:
             print("-- NO DOCUMENTS FOUND")
-            return
-        for docname, docID, freq in docs:
-            print(f"-- {docname} : {docID}")
+
+        print("\n\n")
         return docs
 
     def analyzeBooleanExpression(self, expression):
@@ -106,21 +148,11 @@ def main():
     parser.add_argument("--load", action="store_true", help="Cargar índice desde disco en lugar de indexar de nuevo")
     args = parser.parse_args()
 
-    daat = DaatRetriever(Path(args.path), args.docs, loadIndexFromDisk=args.load)
+    daat = DaatRetriever(Path(args.path), args.docs, loadIndexFromDisk=args.load, indexer=Indexer(True))
 
     while True:
-        query = input("Ingrese una query booleana: ")
+        query = input("Ingrese una query: ")
         daat.getQueryRanking(query)
-        """
-        query = input("Ingrese una query (booleana o normal): ")
-        if any(op in query.upper() for op in ["AND", "OR", "NOT"]):
-            taat.getQueryRanking(query)
-        else:
-            results = taat.searchQuery(query)
-            print(f"Top resultados para '{query}':")
-            for doc_id, score in results[:10]:
-                print(f"Doc: {doc_id} - Score: {score:.4f}")
-        """
 
 if __name__ == "__main__":
     main()

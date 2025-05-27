@@ -13,9 +13,9 @@ def main():
     parser.add_argument("--load", action="store_true", help="Cargar índice desde disco en lugar de indexar de nuevo")
     args = parser.parse_args()
 
-    indexer = IndexerEJ6()
-    taat = TaatRetriever(Path(args.corpus_path), 0, True, indexer=indexer)
-    daat = DaatRetriever(Path(args.corpus_path), 0, True, indexer=indexer)
+    indexer = IndexerEJ6(True)
+    taat = TaatRetriever(Path(args.corpus_path), 0, False, indexer=indexer)
+    daat = DaatRetriever(Path(args.corpus_path), 0, False, indexer=indexer)
 
     taat_accum = 0
     daat_accum = 0

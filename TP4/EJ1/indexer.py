@@ -4,12 +4,13 @@ from pathlib import Path
 from collections import defaultdict
 import struct
 import pickle
+import math
 import os
 from TP4.EJ1.tokenicer import TextProcessor
 
 
 class Indexer:
-    def __init__(self):
+    def __init__(self, saveNorms = False):
         self.text_processor = TextProcessor()
         self.terms = []
         self.term_ids = {}
@@ -21,6 +22,8 @@ class Indexer:
         self.PATH_VOCAB = "vocabulary.bin"
         self.PATH_POSTINGS = "postings.bin"
         self.PATH_DOCNAMES = "docnames.bin"
+        self.PATH_DOC_NORMS = "doc_norms.bin"
+        self.saveNorms = saveNorms
         self.docnames = {}
         self.index = {}
         self.doc_count = 0
@@ -32,6 +35,7 @@ class Indexer:
         return result
 
     def _add_document(self, doc_id, text, docname):
+
         term_freqs = self.text_processor.process(text)
         for term, freq in term_freqs.items():
             if term not in self.term_ids:
@@ -41,6 +45,7 @@ class Indexer:
             else:
                 term_id = self.term_ids[term]
             self.json_data[term_id]["postings"][doc_id] = freq
+
         self.docnames[doc_id] = docname
 
     def _serialize_chunk(self):
@@ -89,6 +94,38 @@ class Indexer:
             self._serialize_chunk()
 
         print(f" Tiempo de indexado: {time.time() - start_time} s.")
+
+
+    def saveDocNorms(self):
+        doc_norms = {}
+
+        with open(self.PATH_POSTINGS, "rb") as p_file:
+            for term, (offset, df) in self.index.items():
+                if df == 0:
+                    continue
+                idf = math.log(self.doc_count / df, 2)
+                p_file.seek(offset)
+                for _ in range(df):
+                    doc_id, freq = struct.unpack("II", p_file.read(8))
+                    tfidf = (1 + math.log(freq, 2)) * idf
+                    if doc_id in doc_norms:
+                        doc_norms[doc_id] += tfidf ** 2
+                    else:
+                        doc_norms[doc_id] = tfidf ** 2
+
+        for doc_id in doc_norms:
+            doc_norms[doc_id] = math.sqrt(doc_norms[doc_id])
+
+        print(f"DOCNORMS: {doc_norms}, indice: {self.index}")
+
+        with open(self.PATH_DOC_NORMS, "wb") as f:
+            pickle.dump(dict(doc_norms), f)
+
+
+    def getDocNorms(self):
+        with open(self.PATH_DOC_NORMS, "rb") as f:
+            doc_norms = pickle.load(f)
+            return doc_norms
 
 
     def build_vocabulary(self):
@@ -155,6 +192,8 @@ class Indexer:
             return
         with open(self.PATH_DOCNAMES, "rb") as d_file:
             self.docnames = pickle.load(d_file)
+        if self.saveNorms:
+            self.saveDocNorms()
 
     def search(self, term):
         if term not in self.index:

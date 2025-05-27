@@ -32,9 +32,9 @@ class EJ3:
                 line = q_file.readline()
 
         if self.q2_count > 0:
-            print(f"Tiempo promedio de ejecucionde queries [ 2 TERMS ]: {self.q2_accum / self.q2_count} segundos")
+            print(f"Tiempo promedio de ejecucion de queries [ 2 TERMS ]: {self.q2_accum / self.q2_count} segundos")
         if self.q3_count > 0:
-            print(f"Tiempo promedio de ejecucionde queries [ 3 TERMS ]: {self.q3_accum / self.q3_count} segundos")
+            print(f"Tiempo promedio de ejecucion de queries [ 3 TERMS ]: {self.q3_accum / self.q3_count} segundos")
 
 
     def process2Terms(self, terms: list):
@@ -60,7 +60,6 @@ class EJ3:
         self.q3_accum += end - start
         print(f"\nTiempo de ejecución: {end - start:.4f} segundos\n")
         
-
 
     def searchBooleanPattern(self, terms: list):
         for term in terms:

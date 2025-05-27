@@ -11,8 +11,12 @@ class IndexerEJ6(Indexer):
         docnames = {}
 
         postings_dict = defaultdict(list)
+
+        doc_count = 0
+
         with open(path, encoding="utf-8") as f:
             for line in f:
+                doc_count += 1
                 line = line.strip().rstrip(",")  # quita salto de línea y coma final
                 if not line:
                     continue
@@ -22,6 +26,7 @@ class IndexerEJ6(Indexer):
                 for doc_id in doc_ids:
                     docnames[doc_id] = doc_ids
 
+        self.doc_count = doc_count
         vocab = {}
         total_terms = len(self.terms)
         step = max(1, total_terms // 10)

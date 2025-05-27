@@ -26,7 +26,7 @@ class TaatRetriever:
         term_results = []
 
         for q_term, q_freq in query_terms:
-            postings_list = self.indexer.search(q_term)
+            postings_list = self.indexer.search(q_term)  # cada elemento: (docName, docID, freq)
             term_results.append((q_term, q_freq, postings_list))
 
         for term, q_freq, postings_list in term_results:
@@ -37,33 +37,41 @@ class TaatRetriever:
             idf = n_docs / df
 
             for docName, docID, d_freq in postings_list:
-                weighted_freq = 0
-                if not (d_freq <= 0 or q_freq <= 0 or idf <= 0):
-                    weighted_freq = ((1 + math.log(d_freq, 2)) * math.log(idf, 2)) * (1 + math.log(q_freq, 2))
-                scores[docID] = scores.get(docID, 0) + weighted_freq
+                if d_freq <= 0 or q_freq <= 0 or idf <= 0:
+                    continue
+                weighted_freq = ((1 + math.log(d_freq, 2)) * math.log(idf, 2)) * (1 + math.log(q_freq, 2))
 
-        sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
-        return sorted_scores
+                if docID in scores:
+                    scores[docID] = (scores[docID][0] + weighted_freq, docName)
+                else:
+                    scores[docID] = (weighted_freq, docName)
+
+        # Ordenar por score descendente
+        sorted_scores = sorted(scores.items(), key=lambda x: x[1][0], reverse=True)
+
+        # Armar salida como lista de tuplas: (docID, score, docName)
+        return [(docName, docID, score) for docID, (score, docName) in sorted_scores]
     
 
-    def getQueryRanking(self, query: str) -> None:
+    def getQueryRanking(self, query: str, top: int = 10) -> None:
 
-        query = input("Ingrese una query (booleana o normal): ")
         if any(op in query.upper() for op in ["AND", "OR", "NOT"]):
             expression = self.algebra.parse(query, simplify=False)
             docs = self.analyzeBooleanExpression(expression)
             print(f"\nDocumentos recuperados para '{query}':")
-            for docname, docID, freq in docs:
+            for docname, docID, _ in docs:
                 print(f"-- {docname} : {docID}")
     
         else:
             docs = self.searchQuery(query)
-            print(f"Top resultados para '{query}':")
-            for doc_id, score in docs[:10]:
-                print(f"Doc: {doc_id} - Score: {score:.4f}")
+            print(f"\nTop[{top}] resultados para '{query}':")
+            for docname, docID, score in docs[:top]:
+                print(f"-- {docname} : {docID} : {score:.4f}")
         
         if not docs:
             print("-- NO DOCUMENTS FOUND")
+        
+        print("\n\n")
         return docs
     
 
@@ -106,7 +114,7 @@ def main():
     taat = TaatRetriever(Path(args.path), args.docs, loadIndexFromDisk=args.load)
 
     while True:
-        query = input("Ingrese una query booleana: ")
+        query = input("Ingrese una query: ")
         taat.getQueryRanking(query)
         """
         query = input("Ingrese una query (booleana o normal): ")
