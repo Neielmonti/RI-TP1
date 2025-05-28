@@ -1,3 +1,4 @@
+import os
 from TP4.EJ1.indexer import Indexer
 from collections import defaultdict
 from pathlib import Path
@@ -41,7 +42,9 @@ class IndexerEJ6(Indexer):
         total_terms = len(self.terms)
         step = max(1, total_terms // 10)
 
-        with open(self.PATH_VOCAB, "wb") as v_file, open(self.PATH_POSTINGS, "wb") as p_file:
+        with open(self.PATH_VOCAB, "wb") as v_file, open(
+            self.PATH_POSTINGS, "wb"
+        ) as p_file:
             offset = 0
             for term_id, term in enumerate(self.terms):
 
@@ -50,7 +53,7 @@ class IndexerEJ6(Indexer):
                 postings.sort()  # Ordenar por doc_id
 
                 for doc_id in postings:
-                    p_file.write(struct.pack("II", doc_id, 1))  # Asumiendo freq = 1, o adaptá si tenés frecuencias reales
+                    p_file.write(struct.pack("II", doc_id, 1))  # Asumo freq = 1
                 vocab[term] = (offset, df)
                 offset += df * 8
 
@@ -60,12 +63,30 @@ class IndexerEJ6(Indexer):
 
             pickle.dump(vocab, v_file)
             print(f"[DEBUG] Guardado vocabulario con {len(vocab)} términos.")
-        
-        with open(self.PATH_DOCNAMES, "wb") as d_file:
 
-            #self.docnames = dict(sorted(docnames.items(), key=lambda item: item[0], reverse=True))
-            self.docnames = docnames
+        self.docnames = docnames
+        self.doc_count = len(docnames)
+        if self.doc_count == 0:
+            self.doc_count = 1
+
+        with open(self.PATH_DOCNAMES, "wb") as d_file:
             pickle.dump(self.docnames, d_file)
+
+    def load_index(self):
+        print(f"\nCargando indice desde el archivo a la memora.\n")
+        if not os.path.exists(self.PATH_VOCAB):
+            print("[ERROR]: Vocabulario no encontrado.")
+            return
+        with open(self.PATH_VOCAB, "rb") as v_file:
+            self.index = pickle.load(v_file)
+        if not os.path.exists(self.PATH_DOCNAMES):
+            print("[ERROR]: DOCNAMES no encontrados.")
+            return
+        with open(self.PATH_DOCNAMES, "rb") as d_file:
+            self.docnames = pickle.load(d_file)
+        if self.saveNorms:
+            self.doc_count = len(self.docnames)
+            self.saveDocNorms()
 
     def build_vocabulary(self):
         pass
@@ -75,9 +96,11 @@ class IndexerEJ6(Indexer):
             return []
         offset, df = self.index[term]
         postings = []
-        with open(self.PATH_POSTINGS, "rb") as p_file, open(self.PATH_DOCNAMES, "rb") as d_file:
+        with open(self.PATH_POSTINGS, "rb") as p_file, open(
+            self.PATH_DOCNAMES, "rb"
+        ) as d_file:
             p_file.seek(offset)
             for _ in range(df):
                 doc_id, freq = struct.unpack("II", p_file.read(8))
-                postings.append((str(doc_id),doc_id, freq))
+                postings.append((str(doc_id), doc_id, freq))
         return postings

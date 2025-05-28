@@ -5,8 +5,15 @@ import argparse
 import math
 import boolean
 
+
 class DaatRetriever:
-    def __init__(self, path: Path, nDocsToDisc: int, loadIndexFromDisk: bool = False, indexer = Indexer(True)):
+    def __init__(
+        self,
+        path: Path,
+        nDocsToDisc: int,
+        loadIndexFromDisk: bool = False,
+        indexer=Indexer(True),
+    ):
         self.indexer = indexer
         self.queryProcessor = QueryProcessor()
 
@@ -20,12 +27,23 @@ class DaatRetriever:
     def searchTerm(self, term: str) -> list:
         return self.indexer.search(term)
 
-    def get_by_docID(self, postingList, x):
-        for item in postingList:
-            if item[1] == x:
-                return item
+    def get_by_docID(self, postingList, x, term):
+        left = 0
+        right = len(postingList) - 1
+
+        while left <= right:
+            mid = (left + right) // 2
+            doc_id = postingList[mid][1]
+
+            if doc_id == x:
+                return postingList[mid]
+            elif doc_id < x:
+                left = mid + 1
+            else:
+                right = mid - 1
+
         return None
-    
+
     def searchQuery(self, query: str) -> list:
         query_terms = self.queryProcessor.process_query(query)
 
@@ -50,18 +68,18 @@ class DaatRetriever:
                     continue
 
                 # Obtengo la tupla que tiene el docID actual en esta posting list (si es que existe)
-                docActual = self.get_by_docID(postingList, docID)
+                docActual = self.get_by_docID(postingList, docID, term)
 
                 if docActual:
                     docName, _, d_freq = docActual
                     idf = idf_terms[term]
-                    
+
                     if d_freq <= 0 or q_freq <= 0 or idf <= 0:
                         continue
 
                     tfidf_d = (1 + math.log(d_freq, 2)) * idf
                     tfidf_q = (1 + math.log(q_freq, 2)) * idf
-                    
+
                     if docID in scores:
                         scores[docID] = (scores[docID][0] + tfidf_d * tfidf_q, docName)
                     else:
@@ -72,13 +90,18 @@ class DaatRetriever:
                 doc_norm = docNorms[docID]
 
                 if doc_norm > 0:
-                    scores[docID] = (scores[docID][0] / (query_norm * doc_norm) , scores[docID][1])
+                    scores[docID] = (
+                        scores[docID][0] / (query_norm * doc_norm),
+                        scores[docID][1],
+                    )
 
         sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
 
         return [(docName, docID, score) for docID, (score, docName) in sorted_scores]
-    
-    def compute_query_norm(self, term_results: list, total_docs: int) -> tuple[float, dict]:
+
+    def compute_query_norm(
+        self, term_results: list, total_docs: int
+    ) -> tuple[float, dict]:
         query_norm = 0.0
         idf_terms = {}
 
@@ -89,7 +112,7 @@ class DaatRetriever:
             idf = math.log(total_docs / df, 2)
             idf_terms[term] = idf
             tfidf_q = (1 + math.log(q_freq, 2)) * idf
-            query_norm += tfidf_q ** 2
+            query_norm += tfidf_q**2
 
         return math.sqrt(query_norm), idf_terms
 
@@ -101,13 +124,13 @@ class DaatRetriever:
             print(f"\nDocumentos recuperados para '{query}':")
             for docname, docID, _ in docs:
                 print(f"-- {docname} : {docID}")
-    
+
         else:
             docs = self.searchQuery(query)
             print(f"\nTop[{top}] resultados para '{query}':")
             for docname, docID, score in docs[:top]:
                 print(f"-- {docname} : {docID} : {score:.4f}")
-        
+
         if not docs:
             print("-- NO DOCUMENTS FOUND")
 
@@ -141,18 +164,33 @@ class DaatRetriever:
     def termIsInVocab(self, term: str) -> bool:
         return self.indexer.isTermInVocab(term)
 
+
 def main():
-    parser = argparse.ArgumentParser(description="Indexador y buscador booleano y ponderado")
+    parser = argparse.ArgumentParser(
+        description="Indexador y buscador booleano y ponderado"
+    )
     parser.add_argument("path", type=str, help="Ruta al directorio con archivos HTML")
-    parser.add_argument("docs", type=int, default=250, help="Cantidad de documentos a procesar antes de volcar a disco")
-    parser.add_argument("--load", action="store_true", help="Cargar índice desde disco en lugar de indexar de nuevo")
+    parser.add_argument(
+        "docs",
+        type=int,
+        default=250,
+        help="Cantidad de documentos a procesar antes de volcar a disco",
+    )
+    parser.add_argument(
+        "--load",
+        action="store_true",
+        help="Cargar índice desde disco en lugar de indexar de nuevo",
+    )
     args = parser.parse_args()
 
-    daat = DaatRetriever(Path(args.path), args.docs, loadIndexFromDisk=args.load, indexer=Indexer(True))
+    daat = DaatRetriever(
+        Path(args.path), args.docs, loadIndexFromDisk=args.load, indexer=Indexer(True)
+    )
 
     while True:
         query = input("Ingrese una query: ")
         daat.getQueryRanking(query)
+
 
 if __name__ == "__main__":
     main()

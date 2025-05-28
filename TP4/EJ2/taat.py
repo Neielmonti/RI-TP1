@@ -5,8 +5,15 @@ import argparse
 import math
 import boolean
 
+
 class TaatRetriever:
-    def __init__(self, path: Path, nDocsToDisc: int, loadIndexFromDisk: bool = False, indexer = Indexer()):
+    def __init__(
+        self,
+        path: Path,
+        nDocsToDisc: int,
+        loadIndexFromDisk: bool = False,
+        indexer=Indexer(),
+    ):
         self.indexer = indexer
         self.queryProcessor = QueryProcessor()
 
@@ -26,7 +33,9 @@ class TaatRetriever:
         term_results = []
 
         for q_term, q_freq in query_terms:
-            postings_list = self.indexer.search(q_term)  # cada elemento: (docName, docID, freq)
+            postings_list = self.indexer.search(
+                q_term
+            )  # cada elemento: (docName, docID, freq)
             term_results.append((q_term, q_freq, postings_list))
 
         for term, q_freq, postings_list in term_results:
@@ -39,7 +48,9 @@ class TaatRetriever:
             for docName, docID, d_freq in postings_list:
                 if d_freq <= 0 or q_freq <= 0 or idf <= 0:
                     continue
-                weighted_freq = ((1 + math.log(d_freq, 2)) * math.log(idf, 2)) * (1 + math.log(q_freq, 2))
+                weighted_freq = ((1 + math.log(d_freq, 2)) * math.log(idf, 2)) * (
+                    1 + math.log(q_freq, 2)
+                )
 
                 if docID in scores:
                     scores[docID] = (scores[docID][0] + weighted_freq, docName)
@@ -51,7 +62,6 @@ class TaatRetriever:
 
         # Armar salida como lista de tuplas: (docID, score, docName)
         return [(docName, docID, score) for docID, (score, docName) in sorted_scores]
-    
 
     def getQueryRanking(self, query: str, top: int = 10) -> None:
 
@@ -61,19 +71,18 @@ class TaatRetriever:
             print(f"\nDocumentos recuperados para '{query}':")
             for docname, docID, _ in docs:
                 print(f"-- {docname} : {docID}")
-    
+
         else:
             docs = self.searchQuery(query)
             print(f"\nTop[{top}] resultados para '{query}':")
             for docname, docID, score in docs[:top]:
                 print(f"-- {docname} : {docID} : {score:.4f}")
-        
+
         if not docs:
             print("-- NO DOCUMENTS FOUND")
-        
+
         print("\n\n")
         return docs
-    
 
     def analyzeBooleanExpression(self, expression):
         if isinstance(expression, boolean.boolean.Symbol):
@@ -98,17 +107,27 @@ class TaatRetriever:
             return set.union(*sets)
 
         raise ValueError("Operador desconocido en expresión booleana.")
-    
 
     def termIsInVocab(self, term: str) -> bool:
         return self.indexer.isTermInVocab(term)
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Indexador y buscador booleano y ponderado")
+    parser = argparse.ArgumentParser(
+        description="Indexador y buscador booleano y ponderado"
+    )
     parser.add_argument("path", type=str, help="Ruta al directorio con archivos HTML")
-    parser.add_argument("docs", type=int, default=250, help="Cantidad de documentos a procesar antes de volcar a disco")
-    parser.add_argument("--load", action="store_true", help="Cargar índice desde disco en lugar de indexar de nuevo")
+    parser.add_argument(
+        "docs",
+        type=int,
+        default=250,
+        help="Cantidad de documentos a procesar antes de volcar a disco",
+    )
+    parser.add_argument(
+        "--load",
+        action="store_true",
+        help="Cargar índice desde disco en lugar de indexar de nuevo",
+    )
     args = parser.parse_args()
 
     taat = TaatRetriever(Path(args.path), args.docs, loadIndexFromDisk=args.load)
@@ -126,6 +145,7 @@ def main():
             for doc_id, score in results[:10]:
                 print(f"Doc: {doc_id} - Score: {score:.4f}")
         """
+
 
 if __name__ == "__main__":
     main()

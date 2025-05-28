@@ -25,7 +25,6 @@ class IndexerSkiplist:
         self.index = {}
         self.doc_count = 0
 
-    
     def getAllDocsID(self):
         result = []
         for docId, docname in enumerate(self.docnames):
@@ -46,9 +45,11 @@ class IndexerSkiplist:
         self.docnames[doc_id] = docname
 
     def _serialize_chunk(self):
-        chunk_file = self.PATH_CHUNKS.parent / f"{self.PATH_CHUNKS.stem}{self.epoch}.bin"
+        chunk_file = (
+            self.PATH_CHUNKS.parent / f"{self.PATH_CHUNKS.stem}{self.epoch}.bin"
+        )
         chunk_file.parent.mkdir(parents=True, exist_ok=True)
-        
+
         print(f" ----- [Serializando chunk {self.epoch}]")
 
         with open(chunk_file, "wb") as f:
@@ -68,9 +69,10 @@ class IndexerSkiplist:
                 with open(file, encoding="utf-8") as f:
                     html = f.read()
                 soup = BeautifulSoup(html, "html.parser")
-                for tag in soup(["script", "style"]): tag.extract()
+                for tag in soup(["script", "style"]):
+                    tag.extract()
                 text = soup.get_text()
-                self._add_document(str(self.file_index), text, file.stem) 
+                self._add_document(str(self.file_index), text, file.stem)
                 self.file_index += 1
                 self.n_iterations += 1
 
@@ -101,22 +103,28 @@ class IndexerSkiplist:
                         break
                     term_id, doc_id, freq = struct.unpack("III", data)
                     postings_dict[term_id].append((doc_id, freq))
-            
+
         print(f" Tiempo de merge: {time.time() - start_time:.2f} s.")
 
         total_terms = len(self.terms)
         step = max(1, total_terms // 10)
 
-        with open(self.PATH_VOCAB, "wb") as v_file, open(self.PATH_POSTINGS, "wb") as p_file:
+        with open(self.PATH_VOCAB, "wb") as v_file, open(
+            self.PATH_POSTINGS, "wb"
+        ) as p_file:
             for term_id, term in enumerate(self.terms):
                 postings = postings_dict.get(term_id, [])
                 postings.sort()
 
                 df = len(postings)
-                skip_interval = int(df ** 0.5) if df > 0 else 0
+                skip_interval = int(df**0.5) if df > 0 else 0
 
                 for i, (doc_id, freq) in enumerate(postings):
-                    if skip_interval > 0 and i % skip_interval == 0 and i + skip_interval < df:
+                    if (
+                        skip_interval > 0
+                        and i % skip_interval == 0
+                        and i + skip_interval < df
+                    ):
                         skip_to = i + skip_interval
                     else:
                         skip_to = 0
@@ -134,7 +142,6 @@ class IndexerSkiplist:
 
         with open(self.PATH_DOCNAMES, "wb") as d_file:
             pickle.dump(self.docnames, d_file)
-
 
     def load_index(self):
         print(f"\nCargando indice desde el archivo a la memora.\n")
@@ -160,19 +167,20 @@ class IndexerSkiplist:
                 doc_id, freq, skip_to = struct.unpack("III", p_file.read(12))
                 postings.append((self.docnames[str(doc_id)], doc_id, freq, skip_to))
         return postings
-    
+
     def getSkipList(self, term):
         postings = self.search(term)
         result = []
         for doc_name, doc_id, freq, skip_to in postings:
             if skip_to != 0:
                 result.append((doc_name, doc_id, freq, skip_to))
-    
+
         return result
 
 
 def main():
     import argparse
+
     parser = argparse.ArgumentParser()
     parser.add_argument("path", type=str, help="Directorio de documentos HTML")
     parser.add_argument("docs", type=int, help="Documentos por chunk (serialización)")

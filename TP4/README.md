@@ -1,7 +1,7 @@
 # Como ejecutar este ejercicio
 
-### Este ejercicio, al utilizar codigo desarrollado para el punto anterior,
-### es necesario que el script tenga acceso al modulo TP4/EJ1. Para ello,
+### Muchos de los ejercicios, al utilizar codigo desarrollado para puntos anteriores,
+### es necesario que el script tenga acceso al modulo de tal codigo. Para ello,
 ## haremos lo siguiente:
 
 - Ejecutar el siguiente comando: 

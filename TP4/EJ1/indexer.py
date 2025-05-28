@@ -10,7 +10,7 @@ from TP4.EJ1.tokenicer import TextProcessor
 
 
 class Indexer:
-    def __init__(self, saveNorms = False):
+    def __init__(self, saveNorms=False):
         self.text_processor = TextProcessor()
         self.terms = []
         self.term_ids = {}
@@ -49,7 +49,9 @@ class Indexer:
         self.docnames[doc_id] = docname
 
     def _serialize_chunk(self):
-        chunk_file = self.PATH_CHUNKS.parent / f"{self.PATH_CHUNKS.stem}{self.epoch}.bin"
+        chunk_file = (
+            self.PATH_CHUNKS.parent / f"{self.PATH_CHUNKS.stem}{self.epoch}.bin"
+        )
         chunk_file.parent.mkdir(parents=True, exist_ok=True)
 
         print(f" ----- [Serializando chunk {self.epoch}]")
@@ -77,7 +79,8 @@ class Indexer:
                 with open(file, encoding="utf-8") as f:
                     html = f.read()
                 soup = BeautifulSoup(html, "html.parser")
-                for tag in soup(["script", "style"]): tag.extract()
+                for tag in soup(["script", "style"]):
+                    tag.extract()
                 text = soup.get_text()
                 self._add_document(str(self.file_index), text, file.stem)
                 self.file_index += 1
@@ -86,7 +89,7 @@ class Indexer:
                 if self.n_iterations >= docs_per_chunk:
                     self._serialize_chunk()
                     self.n_iterations = 0
-                
+
                 if (self.file_index % 250) == 0:
                     print(f" --- {self.file_index} documentos analizados.")
 
@@ -94,7 +97,6 @@ class Indexer:
             self._serialize_chunk()
 
         print(f" Tiempo de indexado: {time.time() - start_time} s.")
-
 
     def saveDocNorms(self):
         doc_norms = {}
@@ -109,9 +111,9 @@ class Indexer:
                     doc_id, freq = struct.unpack("II", p_file.read(8))
                     tfidf = (1 + math.log(freq, 2)) * idf
                     if doc_id in doc_norms:
-                        doc_norms[doc_id] += tfidf ** 2
+                        doc_norms[doc_id] += tfidf**2
                     else:
-                        doc_norms[doc_id] = tfidf ** 2
+                        doc_norms[doc_id] = tfidf**2
 
         for doc_id in doc_norms:
             doc_norms[doc_id] = math.sqrt(doc_norms[doc_id])
@@ -119,12 +121,10 @@ class Indexer:
         with open(self.PATH_DOC_NORMS, "wb") as f:
             pickle.dump(dict(doc_norms), f)
 
-
     def getDocNorms(self):
         with open(self.PATH_DOC_NORMS, "rb") as f:
             doc_norms = pickle.load(f)
             return doc_norms
-
 
     def build_vocabulary(self):
         print(f"\nConstruyendo índice a partir de los chunks.\n")
@@ -157,7 +157,9 @@ class Indexer:
         step = max(1, total_terms // 10)
 
         # Escribir postings ordenados y armar vocabulario
-        with open(self.PATH_VOCAB, "wb") as v_file, open(self.PATH_POSTINGS, "wb") as p_file:
+        with open(self.PATH_VOCAB, "wb") as v_file, open(
+            self.PATH_POSTINGS, "wb"
+        ) as p_file:
             for term_id, term in enumerate(self.terms):
                 postings = postings_dict.get(term_id, [])
                 postings.sort()  # Ordenar por doc_id
@@ -174,7 +176,7 @@ class Indexer:
 
             pickle.dump(vocab, v_file)
             print(f"[DEBUG] Guardado vocabulario con {len(vocab)} términos.")
-        
+
         with open(self.PATH_DOCNAMES, "wb") as d_file:
             pickle.dump(self.docnames, d_file)
 
@@ -198,13 +200,15 @@ class Indexer:
             return []
         offset, df = self.index[term]
         postings = []
-        with open(self.PATH_POSTINGS, "rb") as p_file, open(self.PATH_DOCNAMES, "rb") as d_file:
+        with open(self.PATH_POSTINGS, "rb") as p_file, open(
+            self.PATH_DOCNAMES, "rb"
+        ) as d_file:
             p_file.seek(offset)
             for _ in range(df):
                 doc_id, freq = struct.unpack("II", p_file.read(8))
-                postings.append((self.docnames[str(doc_id)],doc_id, freq))
+                postings.append((self.docnames[str(doc_id)], doc_id, freq))
         return postings
-    
+
     def printTermPostingList(self, term):
         print("\n")
         if term not in self.index:
@@ -215,13 +219,14 @@ class Indexer:
         for posting in postings:
             print(f"{posting[0]}:{posting[1]}:{posting[2]}")
         print()
-    
+
     def isTermInVocab(self, term):
         return term in self.index
 
 
 def main():
     import argparse
+
     parser = argparse.ArgumentParser()
     parser.add_argument("path", type=str, help="Directorio de documentos HTML")
     parser.add_argument("docs", type=int, help="Documentos por chunk (serialización)")

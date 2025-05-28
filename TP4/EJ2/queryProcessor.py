@@ -6,6 +6,7 @@ import nltk
 from nltk.corpus import stopwords
 import heapq
 
+
 class QueryProcessor:
     def __init__(self):
         nltk.download("stopwords")
@@ -29,19 +30,15 @@ class QueryProcessor:
             i += 1
         return output
 
-
     def sort_words(self, text):
         if platform.system() == "Windows":
             return self.sort_words_windows(text)
         else:
             return self.sort_words_unix(text)
 
-
     def sort_words_unix(self, text):
         with tempfile.NamedTemporaryFile(
-            mode="w+",
-            delete=False,
-            encoding="utf-8"
+            mode="w+", delete=False, encoding="utf-8"
         ) as tmp:
             tmp.write(text)
             tmp.flush()
@@ -49,29 +46,26 @@ class QueryProcessor:
                 f"cat {tmp.name} | tr '[:upper:]' '[:lower:]' | tr -s '[:space:]' '\n' "
                 f"| sed 's/[^a-záéíóúñü]/ /g' | tr -s ' ' '\n' | sed '/^$/d' | sort"
             )
-            result = subprocess.run(
-                command,
-                shell=True,
-                capture_output=True,
-                text=True)
-            words = result.stdout.strip().split('\n')
+            result = subprocess.run(command, shell=True, capture_output=True, text=True)
+            words = result.stdout.strip().split("\n")
             return words
-
 
     def sort_words_windows(self, text):
         heap = []
         for line in text.splitlines():
-            line = re.sub(r'[^a-záéíóúñü\s]', ' ', line.lower())
+            line = re.sub(r"[^a-záéíóúñü\s]", " ", line.lower())
             for word in line.split():
                 heapq.heappush(heap, word)
         words = []
         while heap:
             words.append(heapq.heappop(heap))
         return words
-    
+
+
 def main():
     print("waeasdasdasd")
     pass
+
 
 if __name__ == "__main__":
     main()
