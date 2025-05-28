@@ -15,30 +15,42 @@ class IndexerEJ6(Indexer):
         doc_count = 0
 
         with open(path, encoding="utf-8") as f:
+            i = 0
             for line in f:
-                doc_count += 1
+
                 line = line.strip().rstrip(",")  # quita salto de línea y coma final
                 if not line:
                     continue
+
                 term, df_str, doc_ids_str = line.split(":", 2)
+
                 doc_ids = list(map(int, filter(None, doc_ids_str.split(","))))
+
                 postings_dict[term] = (int(df_str), doc_ids)
+                self.terms.append(term)
+
                 for doc_id in doc_ids:
                     docnames[doc_id] = doc_ids
 
-        self.doc_count = doc_count
+                if (i % 500) == 0:
+                    print(f" --- {i} documentos analizados.")
+                i += 1
+
+        self.doc_count = len(docnames)
         vocab = {}
         total_terms = len(self.terms)
         step = max(1, total_terms // 10)
 
         with open(self.PATH_VOCAB, "wb") as v_file, open(self.PATH_POSTINGS, "wb") as p_file:
+            offset = 0
             for term_id, term in enumerate(self.terms):
-                postings = postings_dict.get(term_id, [])
+
+                df, postings = postings_dict[term]
+
                 postings.sort()  # Ordenar por doc_id
 
-                df = len(postings)
-                for doc_id, freq in postings:
-                    p_file.write(struct.pack("II", doc_id, freq))
+                for doc_id in postings:
+                    p_file.write(struct.pack("II", doc_id, 1))  # Asumiendo freq = 1, o adaptá si tenés frecuencias reales
                 vocab[term] = (offset, df)
                 offset += df * 8
 
@@ -50,6 +62,22 @@ class IndexerEJ6(Indexer):
             print(f"[DEBUG] Guardado vocabulario con {len(vocab)} términos.")
         
         with open(self.PATH_DOCNAMES, "wb") as d_file:
-            self.docnames = dict(sorted(docnames.items(), key=lambda item: item[0], reverse=True))
-            print(self.docnames)
+
+            #self.docnames = dict(sorted(docnames.items(), key=lambda item: item[0], reverse=True))
+            self.docnames = docnames
             pickle.dump(self.docnames, d_file)
+
+    def build_vocabulary(self):
+        pass
+
+    def search(self, term):
+        if term not in self.index:
+            return []
+        offset, df = self.index[term]
+        postings = []
+        with open(self.PATH_POSTINGS, "rb") as p_file, open(self.PATH_DOCNAMES, "rb") as d_file:
+            p_file.seek(offset)
+            for _ in range(df):
+                doc_id, freq = struct.unpack("II", p_file.read(8))
+                postings.append((str(doc_id),doc_id, freq))
+        return postings

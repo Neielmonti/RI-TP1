@@ -15,8 +15,9 @@ def main():
 
     indexer = IndexerEJ6(True)
     taat = TaatRetriever(Path(args.corpus_path), 0, False, indexer=indexer)
-    daat = DaatRetriever(Path(args.corpus_path), 0, False, indexer=indexer)
+    daat = DaatRetriever(Path(args.corpus_path), 0, True, indexer=indexer)
 
+    print("sale de la iniciacion")
     taat_accum = 0
     daat_accum = 0
     count = 0
@@ -34,7 +35,7 @@ def main():
             d_results = daat.searchQuery(query)
             d_time = time.time() - d_start
 
-            print(f"[ QUERY 1 ] TAAT_time: {t_start}, DAAT_time: {d_time}")
+            print(f"[ QUERY {query}, COUNT: {count} ] TAAT_time: {t_start}, DAAT_time: {d_time}")
             taat_accum += t_start
             daat_accum += d_time
             query = f.readline()

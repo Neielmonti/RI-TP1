@@ -116,8 +116,6 @@ class Indexer:
         for doc_id in doc_norms:
             doc_norms[doc_id] = math.sqrt(doc_norms[doc_id])
 
-        print(f"DOCNORMS: {doc_norms}, indice: {self.index}")
-
         with open(self.PATH_DOC_NORMS, "wb") as f:
             pickle.dump(dict(doc_norms), f)
 
