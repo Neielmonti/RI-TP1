@@ -60,12 +60,3 @@ class QueryProcessor:
         while heap:
             words.append(heapq.heappop(heap))
         return words
-
-
-def main():
-    print("waeasdasdasd")
-    pass
-
-
-if __name__ == "__main__":
-    main()
