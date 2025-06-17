@@ -39,6 +39,12 @@ def get_page(url):
     try:
         response = requests.get(url, headers=headers, timeout=5)
         response.raise_for_status()
+        
+        # Verificar que el contenido es HTML
+        content_type = response.headers.get("Content-Type", "")
+        if "html" not in content_type:
+            return None
+
         return response.text
     except requests.RequestException:
         return None
@@ -64,15 +70,12 @@ def passes_filter(url, max_physical_depth):
     return url.startswith("http") and get_physical_depth(url) <= max_physical_depth
 
 
-def free_crawling(seed_urls, max_pages_per_site=20, max_logical_depth=3, max_physical_depth=3):
-    # Inicializamos las listas vacias
+def free_crawling(seed_urls, max_pages_per_site=20, max_logical_depth=3, max_physical_depth=3, max_total_pages=500):
     todo_list = []
     done_list = {}
     url_to_id = {}
     pages_per_site = defaultdict(int)
 
-    # Para las semillas, tomamos su url, le asignamos un ID (y lo agregamos al diccionario de ids), 
-    # guardamos su dominio, su profundidad logica, y le asignamos una lista vacia en outlinks.
     for url in seed_urls:
         domain = normalize_domain(url)
         todo_list.append({
@@ -84,46 +87,39 @@ def free_crawling(seed_urls, max_pages_per_site=20, max_logical_depth=3, max_phy
         })
         url_to_id[url] = len(url_to_id)
 
-
     i = 0
     while i < len(todo_list):
-        # Tomamos la pagina actual.
+        if len(done_list) >= max_total_pages:
+            print(f"\nSe alcanzó el máximo global de {max_total_pages} páginas.")
+            break
+
         current = todo_list[i]
         url = current['url']
         i += 1
 
-        # Tomamos el sitio web / dominio actual.
         domain = current['site_domain']
         logical_depth = current['logical_depth']
 
-        print(f"\nVisiting {url}")
+        print(f"\n [i: {i}] Visiting {url}")
 
-        # Si la cantidad de paginas visitadas de un dado dominio excede la cantidad 
-        # limite de este dominio, se ignora la pagina.
         if pages_per_site[domain] >= max_pages_per_site:
             continue
 
-        # Si la pagina no es html, se ignora la pagina.
         html = get_page(url)
         if html is None:
             continue
 
-        # Si la pagina ya se visitó anteriormente, se ignora la pagina.
-        if current['url'] in done_list:
+        if url in done_list:
             continue
 
-        # Aumentamos el contador de paginas por sitio, agregamos la pagina a la 
-        # lista de visitados, y obtenemos sus links salientes
         pages_per_site[domain] += 1
         done_list[url] = current
         links = get_links(url, html)
 
-        
         for l in links:
             if not passes_filter(l, max_physical_depth):
                 continue
 
-            # Evitar duplicados en outlinks si ya está agregada la pagina.
             if l in done_list:
                 link_id = done_list[l]['id']
                 if link_id not in current['outlinks']:
@@ -136,7 +132,7 @@ def free_crawling(seed_urls, max_pages_per_site=20, max_logical_depth=3, max_phy
 
             elif logical_depth + 1 <= max_logical_depth:
                 domain_l = normalize_domain(l)
-                if pages_per_site[domain_l] < max_pages_per_site:
+                if pages_per_site[domain_l] < max_pages_per_site and len(url_to_id) < max_total_pages:
                     new_id = len(url_to_id)
                     url_to_id[l] = new_id
                     todo_list.append({
@@ -147,25 +143,23 @@ def free_crawling(seed_urls, max_pages_per_site=20, max_logical_depth=3, max_phy
                         'outlinks': []
                     })
                     current['outlinks'].append(new_id)
-                
-        current['outlinks'].sort()
 
+        current['outlinks'].sort()
 
     # Mostrar resumen final
     print("\n\nResumen de crawling:")
     for entry in todo_list:
         print(f"[{entry['id']}] {entry['url']} (Profundidad lógica: {entry['logical_depth']})")
-        print(f"   -> outlinks: {entry['outlinks']}, type: {type(entry['outlinks'])}")
+        print(f"   -> outlinks: {entry['outlinks']}")
 
     dominios_unicos = {entry['site_domain'] for entry in todo_list}
-    print(f"\n\nDominios visitados: {dominios_unicos}")
+    print(f"\nDominios visitados: {dominios_unicos}")
 
     # Grafo con pyvis
     print("\nGenerando grafo de navegación con pyvis :)")
-
     net = Network(height="750px", width="100%", bgcolor="#222222", font_color="white", directed=True)
     net.repulsion()
-    # NODOS
+
     for entry in todo_list:
         url = entry['url']
         outlinks = entry['outlinks']
@@ -189,12 +183,10 @@ def free_crawling(seed_urls, max_pages_per_site=20, max_logical_depth=3, max_phy
             color=color
         )
 
-    # ARISTAS
     for entry in todo_list:
         for out_id in entry['outlinks']:
             net.add_edge(entry['id'], out_id)
 
-    # MOSTRAR
     net.write_html("grafo_crawler.html")
     print("Grafo guardado en 'grafo_crawler.html'")
     webbrowser.open("grafo_crawler.html")
@@ -384,7 +376,7 @@ if __name__ == "__main__":
     mode = sys.argv[1] if len(sys.argv) > 1 else "a"
 
     if mode == "ej2":
-        free_crawling(seed_urls=seedEj2, max_pages_per_site=10, max_logical_depth=5, max_physical_depth=5)
+        free_crawling(seed_urls=seedEj2, max_pages_per_site=20, max_logical_depth=5, max_physical_depth=5, max_total_pages=1000)
     
     if mode == "ej3":
         free_crawling(seed_urls=seedEj3, max_pages_per_site=10, max_logical_depth=3, max_physical_depth=3)
