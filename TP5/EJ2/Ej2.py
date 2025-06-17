@@ -7,10 +7,9 @@ import webbrowser
 import sys
 import networkx as nx
 import matplotlib.pyplot as plt
-
+import tldextract
 
 """
-
 1: push(todo_list.initial_set_of_urls)
 2: while todo_list[0] = Null do
     3: page <-- fetch_page(todo_list[0])
@@ -57,20 +56,25 @@ def get_physical_depth(url):
     path = parsed.path.strip('/')
     return len(path.split('/')) if path else 0
 
+def normalize_domain(url):
+    extracted = tldextract.extract(url)
+    return f"{extracted.domain}.{extracted.suffix}"
+
 def passes_filter(url, max_physical_depth):
     return url.startswith("http") and get_physical_depth(url) <= max_physical_depth
 
-def main(seed_urls, max_pages_per_site=20, max_logical_depth=3, max_physical_depth=3):
+
+def free_crawling(seed_urls, max_pages_per_site=20, max_logical_depth=3, max_physical_depth=3):
     # Inicializamos las listas vacias
     todo_list = []
     done_list = {}
     url_to_id = {}
     pages_per_site = defaultdict(int)
 
-    # Para las semillas, tomamos su url, le asignamos un ID (y lo agregamos al diccionario de id's), 
+    # Para las semillas, tomamos su url, le asignamos un ID (y lo agregamos al diccionario de ids), 
     # guardamos su dominio, su profundidad logica, y le asignamos una lista vacia en outlinks.
     for url in seed_urls:
-        domain = urlparse(url).netloc
+        domain = normalize_domain(url)
         todo_list.append({
             'url': url,
             'id': len(url_to_id),
@@ -80,19 +84,21 @@ def main(seed_urls, max_pages_per_site=20, max_logical_depth=3, max_physical_dep
         })
         url_to_id[url] = len(url_to_id)
 
+
     i = 0
     while i < len(todo_list):
         # Tomamos la pagina actual.
         current = todo_list[i]
         url = current['url']
-        print(f"Visiting {url}")
         i += 1
 
         # Tomamos el sitio web / dominio actual.
         domain = current['site_domain']
         logical_depth = current['logical_depth']
 
-        # Si la cantidad de paginas visitadas de un dado dominio, excede la cantidad 
+        print(f"\nVisiting {url}")
+
+        # Si la cantidad de paginas visitadas de un dado dominio excede la cantidad 
         # limite de este dominio, se ignora la pagina.
         if pages_per_site[domain] >= max_pages_per_site:
             continue
@@ -117,7 +123,7 @@ def main(seed_urls, max_pages_per_site=20, max_logical_depth=3, max_physical_dep
             if not passes_filter(l, max_physical_depth):
                 continue
 
-            # Evitar duplicados en outlinks si ya está
+            # Evitar duplicados en outlinks si ya está agregada la pagina.
             if l in done_list:
                 link_id = done_list[l]['id']
                 if link_id not in current['outlinks']:
@@ -129,25 +135,30 @@ def main(seed_urls, max_pages_per_site=20, max_logical_depth=3, max_physical_dep
                     current['outlinks'].append(link_id)
 
             elif logical_depth + 1 <= max_logical_depth:
-                if pages_per_site[domain] < max_pages_per_site:
+                domain_l = normalize_domain(l)
+                if pages_per_site[domain_l] < max_pages_per_site:
                     new_id = len(url_to_id)
                     url_to_id[l] = new_id
                     todo_list.append({
                         'url': l,
                         'id': new_id,
-                        'site_domain': domain,
-                        'logical_depth': logical_depth + 1, # Tomamos la profundidad logica del link padre, y le sumamos 1
+                        'site_domain': domain_l,
+                        'logical_depth': logical_depth + 1,
                         'outlinks': []
                     })
                     current['outlinks'].append(new_id)
                 
         current['outlinks'].sort()
 
+
     # Mostrar resumen final
-    print("\nResumen de crawling:")
+    print("\n\nResumen de crawling:")
     for entry in todo_list:
         print(f"[{entry['id']}] {entry['url']} (Profundidad lógica: {entry['logical_depth']})")
         print(f"   -> outlinks: {entry['outlinks']}, type: {type(entry['outlinks'])}")
+
+    dominios_unicos = {entry['site_domain'] for entry in todo_list}
+    print(f"\n\nDominios visitados: {dominios_unicos}")
 
     # Grafo con pyvis
     print("\nGenerando grafo de navegación con pyvis :)")
@@ -156,11 +167,26 @@ def main(seed_urls, max_pages_per_site=20, max_logical_depth=3, max_physical_dep
     net.repulsion()
     # NODOS
     for entry in todo_list:
+        url = entry['url']
+        outlinks = entry['outlinks']
+        is_dynamic = '?' in url
+        is_seed = entry['logical_depth'] == 0
+        is_leaf = len(outlinks) == 0
+
+        if is_seed:
+            color = "red"
+        elif is_dynamic:
+            color = "deepskyblue"
+        elif is_leaf:
+            color = "limegreen"
+        else:
+            color = "yellow"
+
         net.add_node(
             entry['id'],
             label=f"{entry['id']}",
-            title=entry['url'],
-            color=f"hsl({(entry['logical_depth'] * 70) % 360}, 70%, 50%)"
+            title=url,
+            color=color
         )
 
     # ARISTAS
@@ -176,21 +202,18 @@ def main(seed_urls, max_pages_per_site=20, max_logical_depth=3, max_physical_dep
     analizar_distribuciones(todo_list)
 
 
-
 def analizar_distribuciones(todo_list):
-    from collections import defaultdict
-
+    # Inicializamos las estructuras vacias.
     total_static = 0
     total_dynamic = 0
     logical_dist = defaultdict(int)
     physical_dist = defaultdict(int)
 
+    # Recorremos cada pagina, contabilizando sus datos.
     for entry in todo_list:
-
         url = entry['url']
         logical = entry['logical_depth']
         physical = get_physical_depth(url)
-
         logical_dist[logical] += 1
         physical_dist[physical] += 1
 
@@ -202,26 +225,28 @@ def analizar_distribuciones(todo_list):
     # Mostrar resultados
     print("\nAnálisis de URLs:")
 
-    print(f"\nPáginas estáticas: {total_static}")
-    print(f"Páginas dinámicas: {total_dynamic}")
+    print(f"\n - Cantidad de páginas estáticas: {total_static}")
+    print(f" - Páginas dinámicas: {total_dynamic}")
 
-    print("\nDistribución por profundidad lógica:")
+    print("\n - Distribución por profundidad lógica:")
     for depth in sorted(logical_dist):
         print(f"  ---   Profundidad lógica {depth}: {logical_dist[depth]} páginas")
 
-    print("\n Distribución por profundidad física:")
+    print("\n - Distribución por profundidad física:")
     for depth in sorted(physical_dist):
         print(f"  ---   Profundidad física {depth}: {physical_dist[depth]} páginas")
 
 
-def crawl_only(seed_urls, max_pages=500, max_logical_depth=10, max_physical_depth=10):
+def crawl_only(seed_urls, max_pages=4, max_logical_depth=2, max_physical_depth=2):
+    # Inicializamos las estructuras vacias.
     todo_list = []
     done_list = {}
     url_to_id = {}
     pages_per_site = defaultdict(int)
 
+    # Agregamos
     for url in seed_urls:
-        domain = urlparse(url).netloc
+        domain = normalize_domain(url)
         todo_list.append({
             'url': url,
             'id': len(url_to_id),
@@ -239,6 +264,8 @@ def crawl_only(seed_urls, max_pages=500, max_logical_depth=10, max_physical_dept
 
         domain = current['site_domain']
         logical_depth = current['logical_depth']
+
+        print(f"\nVisiting {url}")
 
         if pages_per_site[domain] >= 50:
             continue
@@ -285,21 +312,8 @@ def crawl_only(seed_urls, max_pages=500, max_logical_depth=10, max_physical_dept
 
     return list(done_list.values())
 
-if __name__ == "__main__":
-    seed = [
-        "https://mercadolibre.com/"
-    ]
-
-    mode = sys.argv[1] if len(sys.argv) > 1 else "a"
-
-    if mode == "a":
-        main(seed_urls=seed, max_pages_per_site=100, max_logical_depth=50, max_physical_depth=50)
-
-    elif mode == "b":
-        todo_list = crawl_only(seed, max_pages=500)
-        print(f"Se recolectaron {len(todo_list)} páginas.")
-
-        # Construir grafo dirigido
+def nx_graph(todo_list):
+    # Construir grafo dirigido
         G = nx.DiGraph()
         for entry in todo_list:
             G.add_node(entry['id'], url=entry['url'])
@@ -335,17 +349,13 @@ if __name__ == "__main__":
         plt.savefig("overlap_pagerank_hits.png")
         plt.show()
 
-        print("✅ Overlap graficado y guardado como 'overlap_pagerank_hits.png'.")
-        print("\n📌 Explicación:")
-        print("PageRank y Authority no son lo mismo. PR favorece nodos apuntados por muchos, mientras que Authority depende de la calidad de los hubs que apuntan. Por eso el overlap no es perfecto.")
+        print("\n\nOverlap graficado y guardado en el archivo.")
+        
 
-
-
-
-# NETWORK X : random_internet_as_graph 
-
-"""
-	    "https://www.google.com",
+if __name__ == "__main__":
+    
+    seedEj2 = [
+        "https://www.google.com",
         "https://www.youtube.com",
         "https://mail.google.com",
         "https://outlook.office.com",
@@ -365,4 +375,21 @@ if __name__ == "__main__":
         "https://web.whatsapp.com",
         "https://www.reddit.com",
         "https://calendar.google.com"
-"""
+    ]
+
+    seedEj3 = [
+        "https://www.youtube.com"
+    ]
+
+    mode = sys.argv[1] if len(sys.argv) > 1 else "a"
+
+    if mode == "ej2":
+        free_crawling(seed_urls=seedEj2, max_pages_per_site=10, max_logical_depth=5, max_physical_depth=5)
+    
+    if mode == "ej3":
+        free_crawling(seed_urls=seedEj3, max_pages_per_site=10, max_logical_depth=3, max_physical_depth=3)
+
+    elif mode == "ej5":
+        todo_list = crawl_only(seedEj2, max_pages=500)
+        print(f"Se recolectaron {len(todo_list)} páginas.")
+        nx_graph(todo_list)
