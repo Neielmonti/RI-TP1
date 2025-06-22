@@ -308,10 +308,7 @@ def crawl_only(seed_urls, max_pages=4, max_logical_depth=2, max_physical_depth=2
                 if link_id not in current["outlinks"]:
                     current["outlinks"].append(link_id)
 
-            elif (
-                logical_depth + 1 <= max_logical_depth
-                and len(url_to_id) < max_pages
-            ):
+            elif logical_depth + 1 <= max_logical_depth and len(url_to_id) < max_pages:
                 domain_l = normalize_domain(l)
                 if pages_per_site[domain_l] < 50:
                     new_id = len(url_to_id)
@@ -347,31 +344,36 @@ def nx_graph(todo_list):
     hits_auth, _ = nx.hits(G, max_iter=1000)
 
     # Ordenamientos
-    orden_pr = sorted(pagerank.items(), key=lambda x: x[1], reverse=True)
-    orden_auth = sorted(hits_auth.items(), key=lambda x: x[1], reverse=True)
+    orden_pr = [
+        node for node, _ in sorted(pagerank.items(), key=lambda x: x[1], reverse=True)
+    ]
+    orden_auth = [
+        node for node, _ in sorted(hits_auth.items(), key=lambda x: x[1], reverse=True)
+    ]
+    orden_real = [entry["id"] for entry in todo_list]
 
-    # Calcular overlap
-    overlap_percent = []
+    # Calcular overlap para ambos enfoques
     ks = list(range(10, min(501, len(G.nodes)), 10))
-    for k in ks:
-        top_pr = set([node for node, _ in orden_pr[:k]])
-        top_auth = set([node for node, _ in orden_auth[:k]])
-        inter = top_pr & top_auth
-        overlap = len(inter) / k
-        overlap_percent.append(overlap)
+    overlap_pr = []
 
-    # Graficar
+    for k in ks:
+        top_auth = set(orden_auth[:k])
+        top_pr = set(orden_pr[:k])
+        inter_pr = top_auth & top_pr
+        overlap_pr.append(len(inter_pr) / k)
+
+    # Graficar comparación
     plt.figure(figsize=(10, 6))
-    plt.plot(ks, overlap_percent, marker="o", label="Overlap PR vs Auth")
-    plt.xlabel("Cantidad de páginas recolectadas")
-    plt.ylabel("Porcentaje de overlap")
-    plt.title("Overlap entre orden por PageRank y por Authority (HITS)")
+    plt.plot(ks, overlap_pr, label="Crawling por PageRank vs Authority", marker="x")
+    plt.xlabel("k (top páginas consideradas)")
+    plt.ylabel("Porcentaje de overlap con Authority")
+    plt.title("Evolución del overlap con Authority para dos estrategias de crawling")
     plt.grid(True)
     plt.legend()
-    plt.savefig("overlap_pagerank_hits.png")
+    plt.savefig("overlap_doble.png")
     plt.show()
 
-    print("\n\nOverlap graficado y guardado en el archivo.")
+    print("\n\nOverlap graficado y guardado.")
 
 
 if __name__ == "__main__":
